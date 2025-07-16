@@ -82,8 +82,8 @@ Proyek ini merupakan bagian dari tugas akhir untuk memenuhi salah satu syarat ke
 Jika ada pertanyaan, masukan, atau kebutuhan demo:
 
 * 📧 Email: [rahardyandra@email.com](mailto:rahardyandra@email.com)
-* 💼 LinkedIn: [linkedin.com/in/rahardyandra](https://linkedin.com/in/rahardyandra-pratama)
-* 🐙 GitHub: [github.com/rahardyandra](https://github.com/AlzeHazeka)
+* 💼 LinkedIn: [linkedin.com/in/rahardyandra-pratama](https://linkedin.com/in/rahardyandra-pratama)
+* 🐙 GitHub: [github.com/AlzeHazeka](https://github.com/AlzeHazeka)
 
 ---
 
