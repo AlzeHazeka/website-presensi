@@ -59,11 +59,6 @@ Ini adalah proyek skripsi saya yang berjudul **“Pengembangan Sistem Informasi 
 
 ---
 
-### 💰 Modul Penggajian
-![Penggajian](screenshots/penggajian.png)
-
----
-
 ### 📄 Laporan Presensi Bulanan
 ![Laporan](screenshots/laporan.png)
 
@@ -77,62 +72,10 @@ Ini adalah proyek skripsi saya yang berjudul **“Pengembangan Sistem Informasi 
 > - MySQL
 > - Git
 
-### 1. Clone Repository
-```bash
-git clone https://github.com/AlzeHazeka/website-presensi.git
-cd nama-repo-skripsi
-````
-
-### 2. Install Dependency
-
-```bash
-composer install
-npm install && npm run build
-```
-
-### 3. Setup File `.env`
-
-```bash
-cp .env.example .env
-```
-
-### 4. Generate App Key
-
-```bash
-php artisan key:generate
-```
-
-### 5. Setup Database
-
-* Buat database baru (contoh: `skripsi_presensi`)
-* Ubah konfigurasi `.env` sesuai nama database dan kredensial MySQL
-
-Lalu jalankan:
-
-```bash
-php artisan migrate --seed
-```
-
-### 6. Jalankan Server Lokal
-
-```bash
-php artisan serve
-```
-
----
-
-## 🧪 Akun Demo (Opsional)
-
-| Role     | Email                                         | Password |
-| -------- | --------------------------------------------- | -------- |
-| Admin    | [admin@example.com](mailto:admin@example.com) | password |
-| Karyawan | [user@example.com](mailto:user@example.com)   | password |
-
----
 
 ## 🎓 Tentang Proyek
 
-Proyek ini merupakan bagian dari tugas akhir untuk memenuhi salah satu syarat kelulusan pada program studi Teknik Informatika. Proyek ini dikembangkan berdasarkan kebutuhan nyata di CV. Irfan Putera Sejahtera, dengan fokus pada kepraktisan penggunaan dan kemudahan pengelolaan data.
+Proyek ini merupakan bagian dari skripsi untuk memenuhi salah satu syarat kelulusan pada program studi Sistem Informasi. Proyek ini dikembangkan berdasarkan kebutuhan nyata di CV. Irfan Putera Sejahtera, dengan fokus pada kepraktisan penggunaan dan kemudahan pengelolaan data.
 
 ---
 
