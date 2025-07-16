@@ -1,12 +1,3 @@
-Tentu! Berikut adalah template `README.md` yang panjang, rapi, dan profesional untuk proyek skripsimu. README ini cocok untuk proyek berbasis web seperti sistem presensi dan penggajian, dan sudah saya siapkan beberapa bagian khusus untuk menaruh **screenshot halaman seperti dashboard, login, dll.**
-
-Kamu tinggal **copy–paste** ke file `README.md` di VS Code, lalu **upload gambar ke folder `screenshots/`** atau yang kamu tentukan sendiri.
-
----
-
-### 📄 `README.md`
-
-````markdown
 # 💼 Sistem Informasi Presensi dan Penggajian Karyawan
 
 Ini adalah proyek skripsi saya yang berjudul **“Pengembangan Sistem Informasi Presensi dan Penggajian Karyawan Berbasis Web di CV. Irfan Putera Sejahtera”**. Aplikasi ini bertujuan untuk mempermudah pencatatan kehadiran dan penggajian karyawan secara efisien, real-time, dan terintegrasi.
@@ -88,7 +79,7 @@ Ini adalah proyek skripsi saya yang berjudul **“Pengembangan Sistem Informasi 
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/username/nama-repo-skripsi.git
+git clone https://github.com/AlzeHazeka/website-presensi.git
 cd nama-repo-skripsi
 ````
 
