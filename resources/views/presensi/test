@@ -1,0 +1,123 @@
+<x-app-layout>
+    <x-slot name="header">
+        <div class="flex flex-wrap justify-between items-center gap-2">
+            <h2 class="text-xl leading-tight font-semibold text-gray-800">📅 Riwayat Presensi</h2>
+            <div class="flex flex-wrap gap-2">
+                <select id="bulan" class="p-2 border rounded">
+                    @for ($i = 1; $i <= 12; $i++)
+                        <option value="{{ $i }}" {{ $i == now()->month ? 'selected' : '' }}>
+                            {{ \Carbon\Carbon::createFromFormat('m', $i)->translatedFormat('F') }}
+                        </option>
+                    @endfor
+                </select>
+                <select id="tahun" class="p-2 border rounded">
+                    @php $tahunSekarang = now()->year; @endphp
+                    @for ($i = 2023; $i <= $tahunSekarang + 1; $i++)
+                        <option value="{{ $i }}" {{ $i == $tahunSekarang ? 'selected' : '' }}>
+                            {{ $i }}
+                        </option>
+                    @endfor
+                </select>
+            </div>
+        </div>
+    </x-slot>
+
+    <div class="container mx-auto p-4 md:p-6">
+        <div class="overflow-x-auto rounded-lg shadow-md bg-white p-4 mb-6">
+            <div id="calendar"></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Detail Presensi -->
+            <div class="p-4 bg-white shadow-md rounded-lg">
+                <h3 class="text-lg font-bold mb-2">📅 Detail Presensi</h3>
+                <p><strong>Tanggal:</strong> <span id="detailTanggal">Pilih tanggal</span></p>
+                <p><strong>Jam Masuk:</strong> <span id="detailJamMasuk">-</span></p>
+                <p><strong>Jam Keluar:</strong> <span id="detailJamKeluar">-</span></p>
+                <p><strong>Lokasi Masuk:</strong> <span id="detailLokasiMasuk">-</span></p>
+                <p><strong>Lokasi Keluar:</strong> <span id="detailLokasiKeluar">-</span></p>
+
+                <hr class="my-3">
+
+                <h4 class="text-md font-semibold mb-1">⏰ Lembur</h4>
+                <p><strong>Jam Mulai:</strong> <span id="detailJamMulaiLembur">-</span></p>
+                <p><strong>Jam Pulang:</strong> <span id="detailJamPulangLembur">-</span></p>
+                <p><strong>Lokasi Mulai:</strong> <span id="detailLokasiMulaiLembur">-</span></p>
+                <p><strong>Lokasi Pulang:</strong> <span id="detailLokasiPulangLembur">-</span></p>
+            </div>
+
+            <!-- Gaji Presensi -->
+            <div id="gajiPresensi" class="p-4 bg-white shadow-md rounded-lg">
+                <h3 class="text-lg font-bold mb-2">💰 Penghitungan Gaji</h3>
+                <p><strong>Total Hari Kerja:</strong> <span id="totalHariKerja">0</span> hari</p>
+                <p><strong>Gaji per Hari:</strong> Rp <span id="gajiPerHari">0</span></p>
+                <p><strong>Total Gaji:</strong> Rp <span id="totalGaji">0</span></p>
+                <p class="text-red-500 font-bold" id="gajiPesan"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- FullCalendar & jQuery -->
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.1/main.min.css" />
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const calendarEl = document.getElementById('calendar');
+            const calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                height: 550,
+                events: '/get-events',
+                dateClick: function(info) {
+                    const tanggal = info.dateStr;
+                    $('#detailTanggal').text(new Date(tanggal).toLocaleDateString('id-ID'));
+
+                    $.ajax({
+                        url: '/get-detail',
+                        data: { tanggal: tanggal },
+                        success: function(data) {
+                            $('#detailJamMasuk').text(data.jam_masuk ?? '-');
+                            $('#detailJamKeluar').text(data.jam_keluar ?? '-');
+                            $('#detailLokasiMasuk').text(data.lokasi_masuk ?? '-');
+                            $('#detailLokasiKeluar').text(data.lokasi_keluar ?? '-');
+
+                            $('#detailJamMulaiLembur').text(data.jam_mulai_lembur ?? '-');
+                            $('#detailJamPulangLembur').text(data.jam_pulang_lembur ?? '-');
+                            $('#detailLokasiMulaiLembur').text(data.lokasi_mulai_lembur ?? '-');
+                            $('#detailLokasiPulangLembur').text(data.lokasi_pulang_lembur ?? '-');
+                        }
+                    });
+                }
+            });
+
+            calendar.render();
+
+            // Hitung Gaji saat dropdown berubah
+            $('#bulan, #tahun').on('change', function() {
+                const bulan = $('#bulan').val();
+                const tahun = $('#tahun').val();
+
+                $.ajax({
+                    url: '/hitung-gaji',
+                    method: 'GET',
+                    data: { bulan: bulan, tahun: tahun },
+                    success: function(data) {
+                        $('#totalHariKerja').text(data.total_hari_kerja ?? 0);
+                        $('#gajiPerHari').text(data.gaji_per_hari ?? 0);
+                        $('#totalGaji').text(data.total_gaji ?? 0);
+
+                        if (data.message) {
+                            $('#gajiPesan').text(data.message);
+                        } else {
+                            $('#gajiPesan').text('');
+                        }
+                    }
+                });
+            });
+
+            // Trigger pertama kali saat load
+            $('#bulan').trigger('change');
+        });
+    </script>
+</x-app-layout>
