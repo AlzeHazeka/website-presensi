@@ -105,7 +105,7 @@
                 });
 
 
-                function ambilLokasi(jenis) {
+            function ambilLokasi(jenis) {
             if (navigator.geolocation) {
                 navigator.geolocation.getCurrentPosition(function(position) {
                     let lokasi = position.coords.latitude + ", " + position.coords.longitude;
