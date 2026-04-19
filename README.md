@@ -34,11 +34,10 @@ Ini adalah proyek skripsi saya yang berjudul **“Pengembangan Sistem Informasi 
 
 | Stack        | Teknologi                        |
 |--------------|----------------------------------|
-| Backend      | PHP (Laravel 10)                |
+| Backend      | PHP (Laravel 11)                |
 | Frontend     | Blade, Tailwind CSS             |
 | Database     | MySQL                           |
-| Charting     | Chart.js                        |
-| Tools        | VS Code, Git, XAMPP             |
+| Tools        | VS Code, Git, XAMPP, Jetstream              |
 
 ---
 
@@ -59,74 +58,8 @@ Ini adalah proyek skripsi saya yang berjudul **“Pengembangan Sistem Informasi 
 
 ---
 
-### 💰 Modul Penggajian
-![Penggajian](screenshots/penggajian.png)
-
----
-
 ### 📄 Laporan Presensi Bulanan
 ![Laporan](screenshots/laporan.png)
-
----
-
-## ⚙️ Cara Install dan Jalankan Proyek
-
-> Pastikan kamu sudah menginstall:
-> - PHP ≥ 8.1
-> - Composer
-> - MySQL
-> - Git
-
-### 1. Clone Repository
-```bash
-git clone https://github.com/AlzeHazeka/website-presensi.git
-cd nama-repo-skripsi
-````
-
-### 2. Install Dependency
-
-```bash
-composer install
-npm install && npm run build
-```
-
-### 3. Setup File `.env`
-
-```bash
-cp .env.example .env
-```
-
-### 4. Generate App Key
-
-```bash
-php artisan key:generate
-```
-
-### 5. Setup Database
-
-* Buat database baru (contoh: `skripsi_presensi`)
-* Ubah konfigurasi `.env` sesuai nama database dan kredensial MySQL
-
-Lalu jalankan:
-
-```bash
-php artisan migrate --seed
-```
-
-### 6. Jalankan Server Lokal
-
-```bash
-php artisan serve
-```
-
----
-
-## 🧪 Akun Demo (Opsional)
-
-| Role     | Email                                         | Password |
-| -------- | --------------------------------------------- | -------- |
-| Admin    | [admin@example.com](mailto:admin@example.com) | password |
-| Karyawan | [user@example.com](mailto:user@example.com)   | password |
 
 ---
 
@@ -138,9 +71,9 @@ Proyek ini merupakan bagian dari tugas akhir untuk memenuhi salah satu syarat ke
 
 ## ✍️ Kontributor
 
-**Nama:** Rahardyandra Pratama
-**Peran:** Fullstack Developer (Skripsi)
-**Universitas:** \[Nama Universitas kamu]
+*Nama: Rahardyandra Pratama
+*Peran: Fullstack Developer (Skripsi)
+*Universitas: Universitas Amikom Yogyakarta
 
 ---
 
@@ -148,9 +81,9 @@ Proyek ini merupakan bagian dari tugas akhir untuk memenuhi salah satu syarat ke
 
 Jika ada pertanyaan, masukan, atau kebutuhan demo:
 
-* 📧 Email: [rahardyandra@email.com](mailto:rahardyandra@email.com)
-* 💼 LinkedIn: [linkedin.com/in/rahardyandra](https://linkedin.com/in/rahardyandra)
-* 🐙 GitHub: [github.com/rahardyandra](https://github.com/rahardyandra)
+* 📧 Email: [rahardyandranep@email.com](mailto:rahardyandranep@email.com)
+* 💼 LinkedIn: [linkedin.com/in/rahardyandra-pratama](https://linkedin.com/in/rahardyandra-pratama)
+* 🐙 GitHub: [github.com/AlzeHazeka](https://github.com/AlzeHazeka)
 
 ---
 
@@ -160,19 +93,3 @@ Proyek ini digunakan hanya untuk keperluan akademik. Dilarang menggunakan sebagi
 
 ```
 
----
-
-### 📁 Tips:
-- Buat folder `screenshots/` dan simpan file PNG seperti `login.png`, `dashboard.png`, dll di situ.
-- Pastikan nama file dan path sesuai seperti yang di README.
-
----
-
-Kalau kamu mau, tinggal beri tahu saya:
-- Nama lengkap proyekmu
-- Nama universitas
-- Nama developer (kalau ingin ditulis tim)
-- Nama repo GitHub (jika sudah ada)
-
-Nanti saya bantu sesuaikan otomatis dan buatin versi siap pakai 👌
-```
