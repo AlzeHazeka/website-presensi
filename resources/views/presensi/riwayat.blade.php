@@ -1,8 +1,8 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-wrap justify-between items-center gap-2">
+        <div class="flex justify-between items-center">
             <h2 class="text-xl leading-tight font-semibold text-gray-800">📅 Riwayat Presensi</h2>
-            <div class="flex flex-wrap gap-2">
+            <div class="flex space-x-2">
                 <select id="bulan" class="p-2 border rounded">
                     @for ($i = 1; $i <= 12; $i++)
                         <option value="{{ $i }}" {{ $i == now()->month ? 'selected' : '' }}>
@@ -24,26 +24,26 @@
         </div>
     </x-slot>
 
-    <div class="container mx-auto p-4 md:p-6">
-        <div class="overflow-x-auto rounded-lg shadow-md bg-white p-4 mb-6">
-            <div id="calendar"></div>
+
+    <div class="container mx-auto p-6">
+        <div id="calendar"></div>
+
+        <div class="p-4 bg-white shadow-md rounded-lg mt-6">
+            <h3 class="text-lg font-bold">📅 Detail Presensi</h3>
+            <p><strong>Tanggal:</strong> <span id="detailTanggal">Pilih tanggal</span></p>
+            <p><strong>Jam Masuk:</strong> <span id="detailJamMasuk">-</span></p>
+            <p><strong>Jam Keluar:</strong> <span id="detailJamKeluar">-</span></p>
+            <p><strong>Lokasi Masuk:</strong> <span id="detailLokasiMasuk">-</span></p>
+            <p><strong>Lokasi Keluar:</strong> <span id="detailLokasiKeluar">-</span></p>
         </div>
-            <div class="p-4 bg-white shadow-md rounded-lg">
-                <h3 class="text-lg font-bold mb-2">📅 Detail Presensi</h3>
-                <p><strong>Tanggal:</strong> <span id="detailTanggal">Pilih tanggal</span></p>
-                <p><strong>Jam Masuk:</strong> <span id="detailJamMasuk">-</span></p>
-                <p><strong>Jam Keluar:</strong> <span id="detailJamKeluar">-</span></p>
-                <p><strong>Lokasi Masuk:</strong> <span id="detailLokasiMasuk">-</span></p>
-                <p><strong>Lokasi Keluar:</strong> <span id="detailLokasiKeluar">-</span></p>
 
-                <hr class="my-3">
-
-                <h4 class="text-md font-semibold mb-1">⏰ Lembur</h4>
-                <p><strong>Jam Mulai:</strong> <span id="detailJamMulaiLembur">-</span></p>
-                <p><strong>Jam Pulang:</strong> <span id="detailJamPulangLembur">-</span></p>
-                <p><strong>Lokasi Mulai:</strong> <span id="detailLokasiMulaiLembur">-</span></p>
-                <p><strong>Lokasi Pulang:</strong> <span id="detailLokasiPulangLembur">-</span></p>
-            </div>
+        <div id="gajiPresensi" class="mt-6 bg-white p-6 shadow-md rounded-lg">
+            <h3 class="text-lg font-bold">💰 Penghitungan Gaji</h3>
+            <p><strong>Total Hari Kerja:</strong> <span id="totalHariKerja">0</span> hari</p>
+            <p><strong>Gaji per Hari:</strong> Rp <span id="gajiPerHari">0</span></p>
+            <p><strong>Total Gaji:</strong> Rp <span id="totalGaji">0</span></p>
+            <p class="text-red-500 font-bold" id="gajiPesan"></p>
+        </div>
     </div>
 
     <!-- FullCalendar & jQuery -->
@@ -57,27 +57,22 @@
             var calendar = new FullCalendar.Calendar(calendarEl, {
                 initialView: 'dayGridMonth',
                 locale: 'id', // Mengubah bahasa kalender ke Indonesia
-                displayEventTime: false,
                 buttonText: {
                     today: "Hari Ini"
                 },
                 events: [
-                    @foreach ($events as $e)
+                    @foreach ($presensi as $p)
                     {
-                        title: "{{ $e['title'] }}",
-                        start: "{{ $e['start'] }}",
-                        backgroundColor: "{{ $e['backgroundColor'] }}",
-                        borderColor: "{{ $e['borderColor'] }}",
-                        textColor: "{{ $e['textColor'] }}",
+                        title: '{{ $p->jam_keluar ? "✅ Hadir" : "⚠️ Masuk Saja" }}',
+                        start: '{{ $p->tanggal }}',
+                        backgroundColor: '{{ $p->jam_keluar ? "#28a745" : "#ffc107" }}',
+                        borderColor: '{{ $p->jam_keluar ? "#218838" : "#ff9800" }}',
+                        textColor: 'white',
                         extendedProps: {
-                            jamMasuk: "{{ $e['extendedProps']['jamMasuk'] }}",
-                            jamKeluar: "{{ $e['extendedProps']['jamKeluar'] }}",
-                            lokasiMasuk: "{{ $e['extendedProps']['lokasiMasuk'] }}",
-                            lokasiKeluar: "{{ $e['extendedProps']['lokasiKeluar'] }}",
-                            jamMulaiLembur: "{{ $e['extendedProps']['jamMulaiLembur'] }}",
-                            jamPulangLembur: "{{ $e['extendedProps']['jamPulangLembur'] }}",
-                            lokasiMulaiLembur: "{{ $e['extendedProps']['lokasiMulaiLembur'] }}",
-                            lokasiPulangLembur: "{{ $e['extendedProps']['lokasiPulangLembur'] }}"
+                            jamMasuk: '{{ $p->jam_masuk }}',
+                            jamKeluar: '{{ $p->jam_keluar ?? "-" }}',
+                            lokasiMasuk: '{{ $p->lokasi_masuk }}',
+                            lokasiKeluar: '{{ $p->lokasi_keluar ?? "-" }}'
                         }
                     },
                     @endforeach
@@ -88,13 +83,6 @@
                     document.getElementById("detailJamKeluar").innerHTML = info.event.extendedProps.jamKeluar;
                     document.getElementById("detailLokasiMasuk").innerHTML = `<a href="https://www.google.com/maps?q=${info.event.extendedProps.lokasiMasuk}" target="_blank" class="text-blue-500 underline">${info.event.extendedProps.lokasiMasuk}</a>`;
                     document.getElementById("detailLokasiKeluar").innerHTML = info.event.extendedProps.lokasiKeluar !== "-" ? `<a href="https://www.google.com/maps?q=${info.event.extendedProps.lokasiKeluar}" target="_blank" class="text-blue-500 underline">${info.event.extendedProps.lokasiKeluar}</a>` : "-";
-
-                     // Bagian lembur
-                    document.getElementById("detailJamMulaiLembur").innerHTML = info.event.extendedProps.jamMulaiLembur;
-                    document.getElementById("detailJamPulangLembur").innerHTML = info.event.extendedProps.jamPulangLembur;
-                    document.getElementById("detailLokasiMulaiLembur").innerHTML = info.event.extendedProps.lokasiMulaiLembur !== "-" ? `<a href="https://www.google.com/maps?q=${info.event.extendedProps.lokasiMulaiLembur}" target="_blank" class="text-blue-500 underline">${info.event.extendedProps.lokasiMulaiLembur}</a>` : "-";
-                    document.getElementById("detailLokasiPulangLembur").innerHTML = info.event.extendedProps.lokasiPulangLembur !== "-" ? `<a href="https://www.google.com/maps?q=${info.event.extendedProps.lokasiPulangLembur}" target="_blank" class="text-blue-500 underline">${info.event.extendedProps.lokasiPulangLembur}</a>` : "-";
-
                 },
                 datesSet: function(info) {
                     let newDate = info.view.currentStart;
@@ -146,36 +134,4 @@
             }
         });
     </script>
-
-    <style>
-        /* Styling bawaan untuk header fullcalendar */
-        .fc-header-toolbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap; /* Penting! Supaya bisa turun ke bawah saat sempit */
-            gap: 0.5rem; /* Jarak antar elemen */
-        }
-
-        /* Ini supaya tombol di kanan tetap rapi */
-        .fc-header-toolbar .fc-toolbar-chunk:last-child {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        /* Responsif saat layar kecil */
-        @media (max-width: 640px) { /* Tailwind sm: breakpoint kira-kira 640px */
-            .fc-header-toolbar {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-
-            .fc-header-toolbar .fc-toolbar-chunk:last-child {
-                width: 100%;
-                justify-content: flex-start;
-            }
-        }
-    </style>
-
 </x-app-layout>

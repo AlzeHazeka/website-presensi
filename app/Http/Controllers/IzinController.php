@@ -2,59 +2,108 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Izin;
+use App\Support\IzinEligibility;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use App\Models\Izin;
-use App\Models\Presensi;
-use App\Models\Lembur;
-use Carbon\Carbon;
+use Inertia\Inertia;
 
 class IzinController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $ucapan = now()->hour < 12 ? 'Selamat pagi' : (now()->hour < 17 ? 'Selamat siang' : 'Selamat malam');
-        $tanggalHariIni = Carbon::now()->format('Y-m-d');
+        $user = Auth::user();
 
-        $izinHariIni = Izin::where('user_id', Auth::id())
-            ->whereDate('tanggal_izin', $tanggalHariIni)
-            ->first();
+        if (! $user) {
+            return redirect()->route('login')->with('error', 'Silakan login terlebih dahulu.');
+        }
 
-        return view('izin.izin', compact('ucapan', 'tanggalHariIni', 'izinHariIni'));
+        $now = Carbon::now(config('app.timezone'));
+        $tanggalHariIni = $now->toDateString();
+
+        $monthParam = (string) $request->query('month', '');
+        $activeMonth = null;
+        if (preg_match('/^\d{4}-\d{2}$/', $monthParam)) {
+            try {
+                $activeMonth = Carbon::createFromFormat('Y-m', $monthParam, config('app.timezone'))->startOfMonth();
+            } catch (\Throwable) {
+                $activeMonth = null;
+            }
+        }
+        $activeMonth = $activeMonth ?: $now->copy()->startOfMonth();
+
+        $hour = (int) $now->format('H');
+        if ($hour < 12) {
+            $ucapan = 'Selamat Pagi';
+        } elseif ($hour < 18) {
+            $ucapan = 'Selamat Siang';
+        } else {
+            $ucapan = 'Selamat Malam';
+        }
+
+        return Inertia::render('Izin/Index', [
+            'ucapan' => $ucapan,
+            'tanggalHariIni' => $tanggalHariIni,
+            'tanggalHariIniHuman' => Carbon::parse($tanggalHariIni)->translatedFormat('l, d F Y'),
+            'timezoneLabel' => 'Asia/Jakarta (WIB)',
+            'activeMonth' => $activeMonth->format('Y-m'),
+            'riwayatIzin' => IzinEligibility::monthlyHistory(
+                $user->user_id,
+                (int) $activeMonth->year,
+                (int) $activeMonth->month,
+                config('app.timezone'),
+            ),
+            'eligibilityHariIni' => IzinEligibility::check($user->user_id, $tanggalHariIni),
+        ]);
+    }
+
+    public function eligibility(Request $request)
+    {
+        $user = Auth::user();
+
+        if (! $user) {
+            return response()->json(['status' => 'error', 'message' => 'Silakan login terlebih dahulu.'], 401);
+        }
+
+        $validated = $request->validate([
+            'date' => ['required', 'date'],
+        ]);
+
+        $result = IzinEligibility::check($user->user_id, (string) $validated['date']);
+
+        return response()->json([
+            'status' => 'success',
+            'data' => $result,
+        ]);
     }
 
     public function ajukan(Request $request)
     {
-        $request->validate([
-            'tanggal_izin' => 'required|date|after_or_equal:today',
+        $user = Auth::user();
+
+        if (! $user) {
+            return response()->json(['status' => 'error', 'message' => 'Silakan login terlebih dahulu.'], 401);
+        }
+
+        $validated = $request->validate([
+            'tanggal_izin' => ['required', 'date', 'after_or_equal:today'],
+            'keterangan' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $tanggalIzin = Carbon::parse($request->tanggal_izin)->format('Y-m-d');
-        $userId = Auth::id();
+        $tanggalIzin = Carbon::parse($validated['tanggal_izin'])->toDateString();
+        $keterangan = trim((string) ($validated['keterangan'] ?? ''));
+        $keterangan = $keterangan !== '' ? $keterangan : null;
 
-        // Cek presensi
-        $sudahPresensi = Presensi::where('user_id', $userId)
-            ->whereDate('tanggal', $tanggalIzin)
-            ->exists();
-
-        // Cek lembur
-        $sudahLembur = Lembur::where('user_id', $userId)
-            ->whereDate('tanggal', $tanggalIzin)
-            ->exists();
-
-        if ($sudahPresensi || $sudahLembur) {
+        $eligibility = IzinEligibility::check($user->user_id, $tanggalIzin);
+        if ($eligibility['blocked_by_activity']) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Gagal mengajukan izin. Anda sudah melakukan presensi atau lembur pada tanggal tersebut.',
+                'message' => $eligibility['activity_message'] ?? 'Pengajuan izin/cuti tidak tersedia pada tanggal ini.',
             ]);
         }
 
-        // Cek sudah izin
-        $sudahIzin = Izin::where('user_id', $userId)
-            ->whereDate('tanggal_izin', $tanggalIzin)
-            ->exists();
-
-        if ($sudahIzin) {
+        if ($eligibility['has_izin']) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Anda sudah mengajukan izin untuk tanggal tersebut.',
@@ -62,9 +111,10 @@ class IzinController extends Controller
         }
 
         Izin::create([
-            'user_id' => $userId,
-            'tanggal_pengajuan' => now(),
+            'user_id' => $user->user_id,
+            'tanggal_pengajuan' => Carbon::now(config('app.timezone')),
             'tanggal_izin' => $tanggalIzin,
+            'keterangan' => $keterangan,
         ]);
 
         return response()->json([

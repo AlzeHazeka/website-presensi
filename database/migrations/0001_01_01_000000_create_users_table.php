@@ -27,7 +27,7 @@ return new class extends Migration
             $table->string('password'); // Kolom password
             $table->rememberToken(); // Kolom untuk "ingat saya"
             $table->string('profile_photo_path', 2048)->nullable(); // Kolom untuk link foto profil
-            $table->enum('status', ['aktif', 'tidak aktif','menunggu'])->default('menunggu'); // Kolom status karyawan
+            $table->enum('status', ['aktif', 'tidak aktif'])->default('aktif'); // Kolom status karyawan
             $table->enum('role', ['Admin', 'Karyawan'])->default('Karyawan'); // Kolom role karyawan
             $table->timestamps(); // Menambahkan kolom created_at dan updated_at
         });

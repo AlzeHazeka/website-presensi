@@ -3,11 +3,12 @@
 namespace App\Actions\Fortify;
 
 use App\Models\User;
+use App\Support\RoleSync;
+use App\Support\Roles;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Fortify\Contracts\CreatesNewUsers;
 use Laravel\Jetstream\Jetstream;
-
 
 class CreateNewUser implements CreatesNewUsers
 {
@@ -22,29 +23,22 @@ class CreateNewUser implements CreatesNewUsers
     {
         Validator::make($input, [
             'nama' => ['required', 'string', 'max:255'],
-            'username' => 'required|string|max:255|unique:users,username',
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'username' => 'required|string|max:255|unique:users',
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
             'password' => $this->passwordRules(),
-        ], [
-            'nama.required' => 'Nama lengkap wajib diisi.',
-            'nama.max' => 'Nama lengkap maksimal 255 karakter.',
-            'username.required' => 'Username wajib diisi.',
-            'username.unique' => 'Username sudah digunakan.',
-            'email.required' => 'Email wajib diisi.',
-            'email.email' => 'Format email tidak valid.',
-            'email.unique' => 'Email sudah digunakan.',
-            'password.required' => 'Password wajib diisi.',
-            'password.min' => 'Password minimal 8 karakter.',
-            'password.confirmed' => 'Konfirmasi password tidak cocok.',
+            'terms' => Jetstream::hasTermsAndPrivacyPolicyFeature() ? ['accepted', 'required'] : '',
         ])->validate();
 
-        return User::create([
+        $user = User::create([
             'nama' => $input['nama'],
             'username' => $input['username'],
             'email' => $input['email'],
             'password' => Hash::make($input['password']),
+            'role' => Roles::KARYAWAN,
         ]);
 
+        RoleSync::sync($user, Roles::KARYAWAN);
 
+        return $user;
     }
 }

@@ -1,91 +1,75 @@
 <x-app-layout>
     <div class="container mx-auto p-4">
-        <x-slot name="header">
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-                Daftar User atau Karyawan
-            </h2>
-        </x-slot>
+        <h2 class="text-xl font-semibold mb-4">Daftar User</h2>
 
         @if(session('success'))
-            <div class="mb-4 p-4 bg-green-100 text-green-700 rounded">
+            <div class="alert alert-success mb-4 p-4 bg-green-100 text-green-700 rounded">
                 {{ session('success') }}
             </div>
         @endif
 
-        <div class="bg-white shadow-md rounded-lg overflow-hidden">
-            <div class="overflow-x-auto">
-                <table class="min-w-full w-full border-collapse">
-                    <thead>
-                        <tr class="bg-gray-200 text-gray-700 text-sm">
-                            <th class="border px-4 py-2 text-left">ID</th>
-                            <th class="border px-4 py-2 text-left">Nama</th>
-                            <th class="border px-4 py-2 text-left">Email</th>
-                            <th class="border px-4 py-2 text-left">Username</th>
-                            <th class="border px-4 py-2 text-left">Alamat</th>
-                            <th class="border px-4 py-2 text-left">Telepon</th>
-                            <th class="border px-4 py-2 text-left">Posisi</th>
-                            <th class="border px-4 py-2 text-left">Tanggal Lahir</th>
-                            <th class="border px-4 py-2 text-left">Tanggal Masuk</th>
-                            <th class="border px-4 py-2 text-left">Gaji</th>
-                            <th class="border px-4 py-2 text-left">Tipe Gaji</th>
-                            <th class="border px-4 py-2 text-left">Status</th>
-                            <th class="border px-4 py-2 text-left">Role</th>
-                            <th class="border px-4 py-2 text-center">Aksi</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse ($users as $user)
-                            <tr class="border-b hover:bg-gray-100 transition text-sm">
-                                <td class="px-4 py-2">{{ $user->user_id }}</td>
-                                <td class="px-4 py-2">{{ $user->nama }}</td>
-                                <td class="px-4 py-2">{{ $user->email }}</td>
-                                <td class="px-4 py-2">{{ $user->username }}</td>
-                                <td class="px-4 py-2">{{ $user->alamat ?? '–' }}</td>
-                                <td class="px-4 py-2">{{ $user->telepon ?? '–' }}</td>
-                                <td class="px-4 py-2">{{ $user->posisi ?? '–' }}</td>
-                                <td class="px-4 py-2">
-                                    {{ $user->tanggal_lahir ? \Carbon\Carbon::parse($user->tanggal_lahir)->translatedFormat('d F Y') : '–' }}
-                                </td>
-                                <td class="px-4 py-2">
-                                    {{ $user->tanggal_masuk ? \Carbon\Carbon::parse($user->tanggal_masuk)->translatedFormat('d F Y') : '–' }}
-                                </td>
-                                <td class="px-4 py-2">Rp{{ number_format($user->gaji ?? 0, 0, ',', '.') }}</td>
-                                <td class="px-4 py-2">{{ ucfirst($user->tipe_gaji ?? '-') }}</td>
-                                <td class="px-4 py-2">{{ ucfirst($user->status ?? '-') }}</td>
-                                <td class="px-4 py-2">{{ $user->role ?? '-' }}</td>
-                                <td class="px-4 py-2 text-center">
-                                    <div class="inline-flex space-x-2">
-                                        <a href="{{ route('data-user.edit', $user->user_id) }}"
-                                           class="bg-blue-400 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm">
-                                            Edit
-                                        </a>
-                                        <form action="{{ route('data-user.destroy', $user->user_id) }}"
-                                              method="POST"
-                                              onsubmit="return confirm('Yakin ingin menghapus user ini?');">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit"
-                                                    class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm">
-                                                Hapus
-                                            </button>
-                                        </form>
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="14" class="text-center py-4 text-gray-500">
-                                    Tidak ada data user/karyawan.
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full bg-white border border-gray-200 rounded-lg shadow-md">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">ID</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Nama</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Email</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Username</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Alamat</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Telepon</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Posisi</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Tanggal Lahir</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Tanggal Masuk</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Gaji</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Tipe Gaji</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Status</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Role</th>
+                        <th class="px-6 py-3 text-left text-sm font-medium text-gray-500">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($users as $user)
+                        <tr class="border-b">
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $user->user_id }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $user->nama }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $user->email }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $user->username }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $user->alamat }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $user->telepon}}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $user->posisi ?? '-' }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $user->tanggal_lahir ?? '-' }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $user->tanggal_masuk ?? '-' }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">Rp{{ number_format($user->gaji, 0, ',', '.') }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ ucfirst($user->tipe_gaji) }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ ucfirst($user->status) }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900">{{ $user->role }}</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900 flex space-x-2">
+                                <!-- Tombol Edit -->
+                                <a href="{{ route('data-user.edit', $user->user_id) }}"
+                                   class="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-700 transition">
+                                    Edit
+                                </a>
 
-            <div class="p-4">
-                {{ $users->links() }}
-            </div>
+                                <!-- Form Delete -->
+                                <form action="{{ route('data-user.destroy', $user->user_id) }}" method="POST"
+                                      onsubmit="return confirm('Apakah Anda yakin ingin menghapus user ini?');">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-700 transition">
+                                        Hapus
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="mt-4">
+            {{ $users->links() }}
         </div>
     </div>
 </x-app-layout>

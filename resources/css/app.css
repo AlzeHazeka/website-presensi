@@ -1,3 +1,24 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Vuepic Datepicker theme overrides (enterprise + cool blue) */
+.dp__theme_light {
+    --dp-primary-color: #0ea5e9; /* sky-500 */
+    --dp-primary-text-color: #ffffff;
+    --dp-hover-color: #f8fafc; /* slate-50 */
+    --dp-text-color: #0f172a; /* slate-900 */
+    --dp-icon-color: #64748b; /* slate-500 */
+    --dp-border-color: #e2e8f0; /* slate-200 */
+    --dp-menu-border-color: #e2e8f0; /* slate-200 */
+    --dp-border-color-hover: #94a3b8; /* slate-400 */
+    --dp-border-color-focus: #38bdf8; /* sky-400 */
+    --dp-disabled-color: #f1f5f9; /* slate-100 */
+    --dp-disabled-color-text: #94a3b8; /* slate-400 */
+    --dp-highlight-color: rgb(14 165 233 / 10%); /* sky-500/10 */
+    --dp-border-radius: 0.75rem; /* rounded-xl */
+}
+
+.dp__menu {
+    box-shadow: 0 12px 24px rgb(2 6 23 / 8%); /* subtle enterprise shadow */
+}

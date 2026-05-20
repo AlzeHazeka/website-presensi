@@ -4,8 +4,6 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Jetstream\Http\Livewire\LogoutOtherBrowserSessionsForm;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 class BrowserSessionsTest extends TestCase
@@ -16,9 +14,11 @@ class BrowserSessionsTest extends TestCase
     {
         $this->actingAs(User::factory()->create());
 
-        Livewire::test(LogoutOtherBrowserSessionsForm::class)
-            ->set('password', 'password')
-            ->call('logoutOtherBrowserSessions')
-            ->assertSuccessful();
+        $response = $this->from('/user/profile')->delete(route('other-browser-sessions.destroy', absolute: false), [
+            'password' => 'password',
+        ]);
+
+        $response->assertStatus(303);
+        $response->assertRedirect('/user/profile');
     }
 }

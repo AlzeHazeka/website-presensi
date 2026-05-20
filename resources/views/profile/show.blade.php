@@ -14,7 +14,7 @@
             @endif
 
             @if (Laravel\Fortify\Features::enabled(Laravel\Fortify\Features::updatePasswords()))
-                <div class="mt-10 sm:mt-0" x-data="{ passwordVisible: { current_password: false, password: false } }">
+                <div class="mt-10 sm:mt-0">
                     @livewire('profile.update-password-form')
                 </div>
 

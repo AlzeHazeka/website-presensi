@@ -14,8 +14,9 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Fortify;
 use App\Models\User;
-use Illuminate\Validation\ValidationException;
 use Laravel\Fortify\Http\Requests\LoginRequest;
+use Illuminate\Validation\ValidationException;
+use Inertia\Inertia;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -36,40 +37,40 @@ class FortifyServiceProvider extends ServiceProvider
         Fortify::updateUserProfileInformationUsing(UpdateUserProfileInformation::class);
         Fortify::updateUserPasswordsUsing(UpdateUserPassword::class);
         Fortify::resetUserPasswordsUsing(ResetUserPassword::class);
+
+        Fortify::loginView(fn () => Inertia::render('Auth/Login'));
+        Fortify::registerView(fn () => Inertia::render('Auth/Register'));
+        Fortify::requestPasswordResetLinkView(fn (Request $request) => Inertia::render('Auth/ForgotPassword', [
+            'status' => $request->session()->get('status'),
+        ]));
+        Fortify::resetPasswordView(fn (Request $request) => Inertia::render('Auth/ResetPassword', [
+            'token' => $request->route('token'),
+            'email' => $request->query('email', ''),
+        ]));
+        Fortify::confirmPasswordView(fn () => Inertia::render('Auth/ConfirmPassword'));
+        Fortify::twoFactorChallengeView(fn () => Inertia::render('Auth/TwoFactorChallenge'));
+
         Fortify::authenticateUsing(function (LoginRequest $request) {
-            $request->validate([
-                'login' => 'required|string',
-                'password' => 'required|string',
-            ], [
-                'login.required' => 'Email atau username wajib diisi.',
-                'password.required' => 'Password wajib diisi.',
-            ]);
 
             $user = User::where('email', $request->login)
-                ->orWhere('username', $request->login)
-                ->first();
 
-            if (!$user) {
-                throw ValidationException::withMessages([
-                    'login' => ['Email atau username tidak ditemukan.'],
-                ]);
+                ->orWhere('username', $request->login)->first();
+
+            if (
+                $user &&
+                Hash::check($request->password, $user->password)
+            ) {
+                if ($user->status !== 'aktif') {
+                    throw ValidationException::withMessages([
+                        Fortify::username() => 'Akun Anda tidak aktif. Hubungi admin.',
+                    ]);
+                }
+
+                return $user;
             }
 
-            if (!Hash::check($request->password, $user->password)) {
-                throw ValidationException::withMessages([
-                    'password' => ['Password yang Anda masukkan salah.'],
-                ]);
-            }
-
-            if ($user->status !== 'aktif') {
-                throw ValidationException::withMessages([
-                    'login' => ['Akun Anda belum aktif. Silakan hubungi admin.'],
-                ]);
-            }
-
-            return $user;
+            return null;
         });
-
         RateLimiter::for('login', function (Request $request) {
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
 
@@ -79,9 +80,5 @@ class FortifyServiceProvider extends ServiceProvider
         RateLimiter::for('two-factor', function (Request $request) {
             return Limit::perMinute(5)->by($request->session()->get('login.id'));
         });
-        Fortify::registerView(function () {
-            return view('auth.register');
-        });
-
     }
 }

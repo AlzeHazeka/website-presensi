@@ -4,23 +4,24 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PresensiController;
 use App\Http\Controllers\Admin\AdminPresensiController;
-use App\Http\Controllers\Auth\RegisteredUserController;
-use App\Http\Controllers\LemburController;
 use App\Http\Controllers\IzinController;
-use App\Http\Controllers\RegistrasiController;
+use App\Http\Controllers\LemburController;
+use Inertia\Inertia;
+use App\Http\Middleware\EnsurePermission;
+use App\Http\Middleware\EnsureAnyPermission;
+use App\Support\Permissions;
 
 // Rute untuk halaman utama
 Route::get('/', function () {
-    return view('welcome');
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
+
+    return redirect()->route('login');
 });
 
-Route::post('/register', [RegisteredUserController::class, 'store'])
-    ->middleware(['guest'])
-    ->name('register');
-
-Route::get('/register/waiting', function () {
-    return view('auth.waiting');
-})->name('register.waiting');
+// Arsip landing lama (jangan dipakai lagi, tapi tidak dihapus)
+Route::view('/welcome-legacy', 'welcome')->name('welcome.legacy');
 
 // Rute yang dilindungi oleh middleware
 Route::middleware([
@@ -32,90 +33,103 @@ Route::middleware([
 
     // Dashboard
     Route::get('/dashboard', function () {
-        return view('dashboard');
+        return Inertia::render('Dashboard');
     })->name('dashboard');
 
 
-    Route::prefix('data-user')->group(function () {
-        // Menampilkan daftar user
+    Route::prefix('data-user')->middleware(EnsurePermission::class.':'.Permissions::USERS_VIEW)->group(function () {
         Route::get('users', [UserController::class, 'index'])->name('data-user.index');
+        Route::get('users/{id}', [UserController::class, 'show'])->name('data-user.show');
 
-        // Menampilkan form untuk edit user
-        Route::get('users/{id}/edit', [UserController::class, 'edit'])->name('data-user.edit');
-
-        // Menyimpan perubahan data user
-        Route::put('users/{id}', [UserController::class, 'update'])->name('data-user.update');
-
-        Route::put('/data-user/{id}/password', [UserController::class, 'updatePassword'])->name('update-password');
-
-        // Menghapus user
-        Route::delete('users/{id}', [UserController::class, 'destroy'])->name('data-user.destroy');
+        Route::get('users/create', [UserController::class, 'create'])
+            ->middleware(EnsurePermission::class.':'.Permissions::USERS_CREATE)
+            ->name('data-user.create');
+        Route::post('users', [UserController::class, 'store'])
+            ->middleware(EnsurePermission::class.':'.Permissions::USERS_CREATE)
+            ->name('data-user.store');
+        Route::get('users/{id}/edit', [UserController::class, 'edit'])
+            ->middleware(EnsurePermission::class.':'.Permissions::USERS_EDIT)
+            ->name('data-user.edit');
+        Route::put('users/{id}', [UserController::class, 'update'])
+            ->middleware(EnsurePermission::class.':'.Permissions::USERS_EDIT)
+            ->name('data-user.update');
+        Route::put('/data-user/{id}/password', [UserController::class, 'updatePassword'])
+            ->middleware(EnsurePermission::class.':'.Permissions::PASSWORD_RESET)
+            ->name('update-password');
+        Route::delete('users/{id}', [UserController::class, 'destroy'])
+            ->middleware(EnsurePermission::class.':'.Permissions::USERS_DELETE)
+            ->name('data-user.destroy');
     });
 
 
     // **Rute Presensi untuk User**
     Route::prefix('presensi')->group(function () {
-        Route::get('/', [PresensiController::class, 'index'])->name('presensi.index');
-        Route::post('/masuk', [PresensiController::class, 'presensiMasuk'])->name('presensi.masuk');
-        Route::post('/keluar', [PresensiController::class, 'presensiKeluar'])->name('presensi.keluar');
-        Route::get('/riwayat', [PresensiController::class, 'riwayat'])->name('presensi.riwayat');
-        Route::get('/events', [PresensiController::class, 'getEvents'])->name('presensi.events');
-        Route::get('/detail', [PresensiController::class, 'getDetail'])->name('presensi.detail');
-        Route::get('/hitung-gaji', [PresensiController::class, 'hitungGaji'])->name('presensi.hitungGaji');
-        Route::get('/status', [PresensiController::class, 'getPresensiStatus'])->name('presensi.status');
+        Route::get('/', [PresensiController::class, 'index'])->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_VIEW)->name('presensi.index');
+        Route::post('/masuk', [PresensiController::class, 'presensiMasuk'])->middleware(['throttle:presensi', EnsurePermission::class.':'.Permissions::PRESENSI_CREATE])->name('presensi.masuk');
+        Route::post('/keluar', [PresensiController::class, 'presensiKeluar'])->middleware(['throttle:presensi', EnsurePermission::class.':'.Permissions::PRESENSI_CREATE])->name('presensi.keluar');
+        Route::get('/riwayat', [PresensiController::class, 'riwayat'])->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_VIEW)->name('presensi.riwayat');
+        Route::get('/events', [PresensiController::class, 'getEvents'])->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_VIEW)->name('presensi.events');
+        Route::get('/detail', [PresensiController::class, 'getDetail'])->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_VIEW)->name('presensi.detail');
+        Route::get('/hitung-gaji', [PresensiController::class, 'hitungGaji'])->middleware(EnsurePermission::class.':'.Permissions::PAYROLL_VIEW)->name('presensi.hitungGaji');
+        Route::get('/status', [PresensiController::class, 'getPresensiStatus'])->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_VIEW)->name('presensi.status');
     });
 
-    Route::get('/lembur', [LemburController::class, 'index'])->name('lembur.index');
-    Route::post('/lembur/mulai', [LemburController::class, 'mulaiLembur'])->name('lembur.mulai');
-    Route::post('/lembur/pulang', [LemburController::class, 'pulangLembur'])->name('lembur.pulang');
+    // **Rute Izin & Lembur untuk User**
+    Route::get('/izin', [IzinController::class, 'index'])->middleware(EnsurePermission::class.':'.Permissions::IZIN_VIEW)->name('izin.index');
+    Route::post('/izin/ajukan', [IzinController::class, 'ajukan'])->middleware(EnsurePermission::class.':'.Permissions::IZIN_CREATE)->name('izin.ajukan');
+    Route::get('/izin/eligibility', [IzinController::class, 'eligibility'])->middleware(EnsurePermission::class.':'.Permissions::IZIN_VIEW)->name('izin.eligibility');
 
-    Route::get('/izin', [IzinController::class, 'index'])->name('izin.index');
-    Route::post('/izin/ajukan', [IzinController::class, 'ajukan'])->name('izin.ajukan');
+    Route::get('/lembur', [LemburController::class, 'index'])->middleware(EnsurePermission::class.':'.Permissions::LEMBUR_VIEW)->name('lembur.index');
+    Route::post('/lembur/mulai', [LemburController::class, 'mulaiLembur'])->middleware(EnsurePermission::class.':'.Permissions::LEMBUR_CREATE)->name('lembur.mulai');
+    Route::post('/lembur/pulang', [LemburController::class, 'pulangLembur'])->middleware(EnsurePermission::class.':'.Permissions::LEMBUR_CREATE)->name('lembur.pulang');
 
     // **Rute Presensi untuk Admin**
-    Route::prefix('admin')->name('admin.')->group(function () {
+    Route::prefix('admin')->name('admin.')->middleware(EnsureAnyPermission::class.':'.Permissions::REPORT_DAILY_VIEW.'|'.Permissions::REPORT_BY_USER_VIEW.'|'.Permissions::REPORT_MONTHLY_VIEW)->group(function () {
         Route::get('/presensi', [AdminPresensiController::class, 'index'])->name('presensi.index');
-        Route::get('/presensi/by-date', [AdminPresensiController::class, 'presensiByDate'])->name('presensi.by-date');
-        Route::get('/presensi/by-user', [AdminPresensiController::class, 'presensiByUser'])->name('presensi.by-user');
+        Route::get('/presensi/by-date', [AdminPresensiController::class, 'presensiByDate'])
+            ->middleware(EnsurePermission::class.':'.Permissions::REPORT_DAILY_VIEW)
+            ->name('presensi.by-date');
+        Route::get('/presensi/by-user', [AdminPresensiController::class, 'presensiByUser'])
+            ->middleware(EnsurePermission::class.':'.Permissions::REPORT_BY_USER_VIEW)
+            ->name('presensi.by-user');
+        Route::get('/presensi/rekap-presensi', [AdminPresensiController::class, 'rekapPresensi'])
+            ->middleware(EnsurePermission::class.':'.Permissions::REPORT_MONTHLY_VIEW)
+            ->name('presensi.rekap.presensi');
 
+        Route::get('/presensi/edit/{id}', [AdminPresensiController::class, 'editPresensi'])
+            ->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_EDIT)
+            ->name('presensi.edit');
+        Route::post('/presensi/update/{id}', [AdminPresensiController::class, 'updatePresensi'])
+            ->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_EDIT)
+            ->name('presensi.update');
 
-        Route::get('/presensi/edit/{id}', [AdminPresensiController::class, 'editPresensi'])->name('presensi.edit');
-        Route::post('/presensi/update/{id}', [AdminPresensiController::class, 'updatePresensi'])->name('presensi.update');
-        Route::get('/lembur/edit/{id}', [AdminPresensiController::class, 'editLembur'])->name('lembur.edit');
-        Route::post('/lembur/update/{id}', [AdminPresensiController::class, 'updateLembur'])->name('lembur.update');
+        Route::get('/presensi/create-manual', [AdminPresensiController::class, 'createManualPresensi'])
+            ->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_MANUAL)
+            ->name('presensi.create');
+        Route::post('/presensi/store-manual', [AdminPresensiController::class, 'storeManualPresensi'])
+            ->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_MANUAL)
+            ->name('presensi.store');
 
-
-        Route::get('/presensi/create-manual', [AdminPresensiController::class, 'createManualPresensi'])->name('presensi.create');
-        Route::post('/presensi/store-manual', [AdminPresensiController::class, 'storeManualPresensi'])->name('presensi.store');
-        Route::get('/presensi/rekap-presensi', [AdminPresensiController::class, 'rekapPresensi'])->name('presensi.rekap.presensi');
-        // Penghapusan Data
-        Route::delete('presensi/delete/{id}', [AdminPresensiController::class, 'destroy'])
-        ->name('presensi.destroy');
-        Route::delete('lembur/delete/{id}', [AdminPresensiController::class, 'destroyLembur'])
-        ->name('lembur.destroy');
-        Route::delete('izin/delete/{id}', [AdminPresensiController::class, 'destroyIzin'])
-        ->name('izin.destroy');
-
-        //Export
-        Route::get('/presensi/rekap/export', [AdminPresensiController::class, 'exportExcel'])->name('presensi.rekap.export');
-        Route::get('/presensi/by-user/export', [AdminPresensiController::class, 'exportByUserExcel'])->name('byuser.export');
-        Route::get('/presensi/by-date/export', [AdminPresensiController::class, 'exportByDateExcel'])->name('presensi.bydate.export');
-
-        Route::get('/antrian-registrasi', [RegistrasiController::class, 'index'])->name('registrasi.antrian');
-        Route::post('/antrian-registrasi/{id}/acc', [RegistrasiController::class, 'approve'])->name('registrasi.acc');
-        Route::post('/antrian-registrasi/{id}/tolak', [RegistrasiController::class, 'reject'])->name('registrasi.tolak');
-
-
-
-
+        Route::get('/presensi/rekap/export', [AdminPresensiController::class, 'exportExcel'])
+            ->middleware(EnsurePermission::class.':'.Permissions::REPORT_EXPORT_EXCEL)
+            ->name('presensi.rekap.export');
+        Route::get('/presensi/rekap/pdf', [AdminPresensiController::class, 'exportRekapPDF'])
+            ->middleware(EnsurePermission::class.':'.Permissions::REPORT_EXPORT_PDF)
+            ->name('presensi.rekap.pdf');
     });
 
-    Route::get('/admin/presensi/export/pdf', [AdminPresensiController::class, 'exportPDF'])->name('admin.presensi.export.pdf');
-    Route::get('/admin/presensi/export/excel', [AdminPresensiController::class, 'exportExcel'])->name('admin.presensi.export.excel');
+    Route::get('/admin/presensi/export/pdf', [AdminPresensiController::class, 'exportPDF'])
+        ->middleware(EnsurePermission::class.':'.Permissions::REPORT_EXPORT_PDF)
+        ->name('admin.presensi.export.pdf');
+    Route::get('/admin/presensi/export/excel', [AdminPresensiController::class, 'exportExcel'])
+        ->middleware(EnsurePermission::class.':'.Permissions::REPORT_EXPORT_EXCEL)
+        ->name('admin.presensi.export.excel');
 
 
-    // Cek data user (Debugging)
-    Route::get('/cek-user', function () {
-        dd(auth()->user());
-    })->middleware('auth');
+    // Cek data user (Debugging) - hanya untuk local/dev
+    if (app()->environment('local')) {
+        Route::get('/cek-user', function () {
+            dd(auth()->user());
+        })->middleware('auth');
+    }
 });

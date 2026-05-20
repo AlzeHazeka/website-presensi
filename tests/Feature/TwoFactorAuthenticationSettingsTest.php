@@ -5,8 +5,6 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Fortify\Features;
-use Laravel\Jetstream\Http\Livewire\TwoFactorAuthenticationForm;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 class TwoFactorAuthenticationSettingsTest extends TestCase
@@ -23,8 +21,9 @@ class TwoFactorAuthenticationSettingsTest extends TestCase
 
         $this->withSession(['auth.password_confirmed_at' => time()]);
 
-        Livewire::test(TwoFactorAuthenticationForm::class)
-            ->call('enableTwoFactorAuthentication');
+        $response = $this->from('/user/profile')->post(route('two-factor.enable', absolute: false));
+
+        $response->assertStatus(302);
 
         $user = $user->fresh();
 
@@ -42,13 +41,11 @@ class TwoFactorAuthenticationSettingsTest extends TestCase
 
         $this->withSession(['auth.password_confirmed_at' => time()]);
 
-        $component = Livewire::test(TwoFactorAuthenticationForm::class)
-            ->call('enableTwoFactorAuthentication')
-            ->call('regenerateRecoveryCodes');
+        $this->from('/user/profile')->post(route('two-factor.enable', absolute: false));
 
         $user = $user->fresh();
 
-        $component->call('regenerateRecoveryCodes');
+        $this->from('/user/profile')->post(route('two-factor.recovery-codes', absolute: false));
 
         $this->assertCount(8, $user->recoveryCodes());
         $this->assertCount(8, array_diff($user->recoveryCodes(), $user->fresh()->recoveryCodes()));
@@ -64,12 +61,11 @@ class TwoFactorAuthenticationSettingsTest extends TestCase
 
         $this->withSession(['auth.password_confirmed_at' => time()]);
 
-        $component = Livewire::test(TwoFactorAuthenticationForm::class)
-            ->call('enableTwoFactorAuthentication');
+        $this->from('/user/profile')->post(route('two-factor.enable', absolute: false));
 
         $this->assertNotNull($user->fresh()->two_factor_secret);
 
-        $component->call('disableTwoFactorAuthentication');
+        $this->from('/user/profile')->delete(route('two-factor.disable', absolute: false));
 
         $this->assertNull($user->fresh()->two_factor_secret);
     }

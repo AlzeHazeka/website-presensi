@@ -5,8 +5,6 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Jetstream\Features;
-use Laravel\Jetstream\Http\Livewire\DeleteUserForm;
-use Livewire\Livewire;
 use Tests\TestCase;
 
 class DeleteAccountTest extends TestCase
@@ -21,11 +19,13 @@ class DeleteAccountTest extends TestCase
 
         $this->actingAs($user = User::factory()->create());
 
-        $component = Livewire::test(DeleteUserForm::class)
-            ->set('password', 'password')
-            ->call('deleteUser');
+        $response = $this->withHeader('X-Inertia', 'true')->delete(route('current-user.destroy', absolute: false), [
+            'password' => 'password',
+        ]);
 
+        $response->assertStatus(409);
         $this->assertNull($user->fresh());
+        $this->assertGuest();
     }
 
     public function test_correct_password_must_be_provided_before_account_can_be_deleted(): void
@@ -36,11 +36,11 @@ class DeleteAccountTest extends TestCase
 
         $this->actingAs($user = User::factory()->create());
 
-        Livewire::test(DeleteUserForm::class)
-            ->set('password', 'wrong-password')
-            ->call('deleteUser')
-            ->assertHasErrors(['password']);
+        $response = $this->from('/user/profile')->delete(route('current-user.destroy', absolute: false), [
+            'password' => 'wrong-password',
+        ]);
 
+        $response->assertSessionHasErrors(['password']);
         $this->assertNotNull($user->fresh());
     }
 }

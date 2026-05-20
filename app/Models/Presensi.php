@@ -20,6 +20,16 @@ class Presensi extends Model
         'lokasi_masuk',
         'jam_keluar',
         'lokasi_keluar',
+        'lat_masuk',
+        'lng_masuk',
+        'accuracy_masuk',
+        'ip_masuk',
+        'ua_masuk',
+        'lat_keluar',
+        'lng_keluar',
+        'accuracy_keluar',
+        'ip_keluar',
+        'ua_keluar',
     ];
 
     protected $casts = [
