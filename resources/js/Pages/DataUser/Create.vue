@@ -17,7 +17,7 @@ const props = defineProps({
 });
 
 const page = usePage();
-const availableRoles = computed(() => page.props.userRoles ?? ['Admin', 'Karyawan']);
+const availableRoles = computed(() => page.props.userRoles ?? ['Super Admin', 'Admin', 'Karyawan']);
 
 const form = useForm({
     nama: '',

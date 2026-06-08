@@ -2,19 +2,20 @@
 
 namespace App\Exports;
 
-use App\Models\Presensi;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\FromArray;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
 use Maatwebsite\Excel\Concerns\WithStyles;
+use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class PresensiByDateExport implements FromArray, WithStyles, WithColumnWidths
+class PresensiByDateExport implements FromArray, ShouldAutoSize, WithColumnWidths, WithStyles, WithTitle
 {
     /**
-     * @param  Collection<int, Presensi>  $presensi
+     * @param  Collection<int, array<string, mixed>>  $presensi
      * @param  array{total_hadir:int, total_belum_checkout:int, total_izin_cuti:int, total_lembur:int}  $summary
      */
     public function __construct(
@@ -28,12 +29,19 @@ class PresensiByDateExport implements FromArray, WithStyles, WithColumnWidths
     {
         return [
             'Nama',
+            'Status Hari Ini',
             'Jam Masuk',
             'Lokasi Masuk',
             'Jam Keluar',
             'Lokasi Keluar',
-            'Total Jam',
+            'Total Kerja',
+            'Lembur',
         ];
+    }
+
+    public function title(): string
+    {
+        return 'Rekap Harian';
     }
 
     public function array(): array
@@ -42,32 +50,27 @@ class PresensiByDateExport implements FromArray, WithStyles, WithColumnWidths
 
         $rows = [];
 
-        $rows[] = ['Laporan Presensi Harian'];
+        $rows[] = ['Rekap Operasional Harian'];
         $rows[] = ['Tanggal', Carbon::parse($this->tanggal)->translatedFormat('d F Y')];
-        $rows[] = ['Total hadir', (string) ($this->summary['total_hadir'] ?? 0)];
-        $rows[] = ['Belum checkout', (string) ($this->summary['total_belum_checkout'] ?? 0)];
-        $rows[] = ['Total izin/cuti', (string) ($this->summary['total_izin_cuti'] ?? 0)];
-        $rows[] = ['Total lembur', (string) ($this->summary['total_lembur'] ?? 0)];
+        $rows[] = ['Total Hadir', (string) ($this->summary['total_hadir'] ?? 0)];
+        $rows[] = ['Belum Checkout', (string) ($this->summary['total_belum_checkout'] ?? 0)];
+        $rows[] = ['Izin/Sakit/Cuti', (string) ($this->summary['total_izin_cuti'] ?? 0)];
+        $rows[] = ['Lembur', (string) ($this->summary['total_lembur'] ?? 0)];
         $rows[] = [];
 
         $rows[] = $this->headings();
 
         $dataRows = $this->presensi
-            ->map(function (Presensi $item) {
-                $diffInMinutes = $item->jam_masuk && $item->jam_keluar
-                    ? Carbon::parse($item->jam_masuk)->diffInMinutes(Carbon::parse($item->jam_keluar))
-                    : 0;
-
-                $hours = (int) floor($diffInMinutes / 60);
-                $minutes = (int) ($diffInMinutes % 60);
-
+            ->map(function (array $item) {
                 return [
-                    $item->user?->nama ?? '-',
-                    $item->jam_masuk ? Carbon::parse($item->jam_masuk)->format('H:i') : 'Belum Presensi',
-                    $item->lokasi_masuk ?? 'Tidak Tersedia',
-                    $item->jam_keluar ? Carbon::parse($item->jam_keluar)->format('H:i') : 'Belum Presensi',
-                    $item->lokasi_keluar ?? 'Tidak Tersedia',
-                    $diffInMinutes > 0 ? "{$hours} Jam {$minutes} Menit" : '-',
+                    $item['nama'] ?? '-',
+                    $item['status_hari_ini']['label'] ?? '-',
+                    $item['jam_masuk'] ?? '-',
+                    $item['lokasi_masuk'] ?? '-',
+                    $item['jam_keluar'] ?? '-',
+                    $item['lokasi_keluar'] ?? '-',
+                    $item['total_jam_text'] ?? '-',
+                    $this->lemburText($item['lembur'] ?? null),
                 ];
             })
             ->values()
@@ -80,18 +83,20 @@ class PresensiByDateExport implements FromArray, WithStyles, WithColumnWidths
     {
         return [
             'A' => 28,
-            'B' => 12,
-            'C' => 38,
-            'D' => 12,
-            'E' => 38,
-            'F' => 16,
+            'B' => 18,
+            'C' => 12,
+            'D' => 30,
+            'E' => 12,
+            'F' => 30,
+            'G' => 16,
+            'H' => 22,
         ];
     }
 
     public function styles(Worksheet $sheet): array
     {
         // Summary title
-        $sheet->mergeCells('A1:F1');
+        $sheet->mergeCells('A1:H1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
 
@@ -101,21 +106,50 @@ class PresensiByDateExport implements FromArray, WithStyles, WithColumnWidths
 
         // Headings row (after summary + blank row) -> row 8
         $headingRow = 8;
-        $sheet->getStyle("A{$headingRow}:F{$headingRow}")->getFont()->setBold(true);
-        $sheet->getStyle("A{$headingRow}:F{$headingRow}")->getAlignment()->setHorizontal('center');
-        $sheet->getStyle("A{$headingRow}:F{$headingRow}")
+        $sheet->getStyle("A{$headingRow}:H{$headingRow}")->getFont()->setBold(true);
+        $sheet->getStyle("A{$headingRow}:H{$headingRow}")->getAlignment()->setHorizontal('center');
+        $sheet->getStyle("A{$headingRow}:H{$headingRow}")
             ->getFill()
             ->setFillType(Fill::FILL_SOLID)
             ->getStartColor()
             ->setRGB('E2E8F0'); // slate-200
 
-        // Wrap location columns
-        $sheet->getStyle('C:C')->getAlignment()->setWrapText(true);
-        $sheet->getStyle('E:E')->getAlignment()->setWrapText(true);
+        $sheet->getStyle('B:B')->getAlignment()->setWrapText(true);
+        $sheet->getStyle('D:D')->getAlignment()->setWrapText(true);
+        $sheet->getStyle('F:F')->getAlignment()->setWrapText(true);
+        $sheet->getStyle('H:H')->getAlignment()->setWrapText(true);
 
         // Freeze at first data row
         $sheet->freezePane('A9');
 
         return [];
+    }
+
+    private function lemburText(?array $lembur): string
+    {
+        if (! $lembur) {
+            return '-';
+        }
+
+        $jamMulai = $lembur['jam_mulai'] ?? null;
+        $jamSelesai = $lembur['jam_selesai'] ?? null;
+
+        if (! $jamMulai) {
+            return '-';
+        }
+
+        $lines = [
+            $jamSelesai ? "{$jamMulai} - {$jamSelesai}" : "Mulai: {$jamMulai}",
+        ];
+
+        if (! empty($lembur['durasi_text'])) {
+            $lines[] = $lembur['durasi_text'];
+        }
+
+        if (! empty($lembur['status']['label'])) {
+            $lines[] = $lembur['status']['label'];
+        }
+
+        return implode("\n", $lines);
     }
 }

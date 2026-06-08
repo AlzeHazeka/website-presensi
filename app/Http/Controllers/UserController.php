@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
+use App\Support\RoleCatalog;
 use App\Support\RoleSync;
 
 class UserController extends Controller
@@ -21,7 +22,7 @@ class UserController extends Controller
         $q = trim((string) $request->query('q', ''));
 
         $query = User::query();
-        if ($role !== '' && in_array($role, config('app.user_roles', []), true)) {
+        if ($role !== '' && in_array($role, RoleCatalog::availableRoleNames(), true)) {
             $query->where('role', $role);
         }
 
@@ -88,7 +89,7 @@ class UserController extends Controller
             'gaji' => 'nullable|integer',
             'tipe_gaji' => 'required|in:harian,bulanan',
             'status' => 'required|in:aktif,tidak aktif',
-            'role' => ['required', Rule::in(config('app.user_roles'))],
+            'role' => ['required', Rule::in(RoleCatalog::availableRoleNames())],
             'password' => 'required|confirmed|min:6',
         ]);
 
@@ -144,14 +145,14 @@ class UserController extends Controller
             'gaji' => 'nullable|integer',
             'tipe_gaji' => 'required|in:harian,bulanan',
             'status' => 'required|in:aktif,tidak aktif',
-            'role' => ['required', Rule::in(config('app.user_roles'))],
+            'role' => ['required', Rule::in(RoleCatalog::availableRoleNames())],
         ]);
 
         $user = User::findOrFail($id);
         $user->update($request->all());
         RoleSync::sync($user, $request->input('role'));
 
-        return redirect()->route('data-user.index')->with('success', 'User berhasil diperbarui');
+        return redirect()->route('data-user.edit', $id)->with('success', 'User berhasil diperbarui.');
     }
 
     public function updatePassword(Request $request, $id)
@@ -167,7 +168,7 @@ class UserController extends Controller
         $user->password = Hash::make($request->password);
         $user->save();
 
-        return redirect()->route('data-user.edit', $id)->with('success', 'Password berhasil diperbarui dan Anda tetap login.');
+        return redirect()->route('data-user.edit', $id)->with('success', 'Password berhasil direset.');
     }
 
     // Menghapus user

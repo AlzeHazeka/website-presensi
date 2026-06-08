@@ -36,6 +36,20 @@ const asideClasses = computed(() => {
     ].join(' ');
 });
 
+const headerClasses = computed(() => {
+    return [
+        'px-4 py-5 flex items-center gap-2',
+        isDesktopCollapsed.value ? 'md:flex-col md:justify-center md:px-2 md:gap-2' : '',
+    ].join(' ');
+});
+
+const brandLinkClasses = computed(() => {
+    return [
+        'flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-2 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40',
+        isDesktopCollapsed.value ? 'md:flex-none md:justify-center md:gap-0 md:px-2 md:w-12' : '',
+    ].join(' ');
+});
+
 function onKeydown(e) {
     if (e.key === 'Escape') closeMobile();
 }
@@ -67,14 +81,14 @@ onBeforeUnmount(() => {
         aria-label="Sidebar navigation"
     >
         <div class="flex h-full flex-col">
-            <div class="px-4 py-5 flex items-center gap-2">
+            <div :class="headerClasses">
                 <Link
                     :href="route('dashboard')"
-                    class="flex min-w-0 flex-1 items-center gap-3 rounded-2xl px-3 py-2 hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40"
+                    :class="brandLinkClasses"
                     :title="isCollapsed ? 'Dashboard' : undefined"
                     @click="closeMobileIfOpen"
                 >
-                    <img src="/images/IPS_logo.png" class="h-9 w-9" alt="IPS Logo" />
+                    <img src="/images/IPS_logo.png" class="h-9 w-9 shrink-0 object-contain" alt="IPS Logo" />
                     <div class="leading-tight min-w-0" :class="isCollapsed ? 'md:hidden' : ''">
                         <div class="text-sm font-semibold tracking-wide">IPS</div>
                         <div class="text-[11px] text-slate-200/70">Internal System</div>

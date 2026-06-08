@@ -86,27 +86,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | User Roles (Legacy-Compatible)
-    |--------------------------------------------------------------------------
-    |
-    | Daftar role yang diizinkan pada aplikasi. Default mengikuti schema legacy
-    | (Admin,Karyawan). Jika database lama sudah memiliki role tambahan (mis. HR),
-    | set melalui APP_USER_ROLES di environment.
-    |
-    */
-
-    'user_roles' => array_values(array_filter(array_map(
-        static fn ($value) => trim($value),
-        explode(',', env('APP_USER_ROLES', 'Super Admin,Admin,Karyawan'))
-    ))),
-
-    'admin_roles' => array_values(array_filter(array_map(
-        static fn ($value) => trim($value),
-        explode(',', env('APP_ADMIN_ROLES', 'Super Admin,Admin'))
-    ))),
-
-    /*
-    |--------------------------------------------------------------------------
     | Encryption Key
     |--------------------------------------------------------------------------
     |

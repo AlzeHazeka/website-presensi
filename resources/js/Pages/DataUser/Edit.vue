@@ -10,7 +10,8 @@ const props = defineProps({
 });
 
 const page = usePage();
-const availableRoles = computed(() => page.props.userRoles ?? ['Admin', 'Karyawan']);
+const availableRoles = computed(() => page.props.userRoles ?? ['Super Admin', 'Admin', 'Karyawan']);
+const successMessage = computed(() => page.props.flash?.success ?? null);
 
 function toDateInput(value) {
     if (!value) return '';
@@ -42,7 +43,10 @@ function submit() {
 }
 
 function submitPassword() {
-    passwordForm.put(route('update-password', props.user.user_id), { preserveScroll: true });
+    passwordForm.put(route('update-password', props.user.user_id), {
+        preserveScroll: true,
+        onSuccess: () => passwordForm.reset('password', 'password_confirmation'),
+    });
 }
 </script>
 
@@ -72,6 +76,22 @@ function submitPassword() {
         </template>
 
         <div class="max-w-7xl mx-auto space-y-6">
+            <div
+                v-if="successMessage"
+                class="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800 shadow-sm"
+                role="status"
+            >
+                <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                </span>
+                <div class="min-w-0">
+                    <div class="text-sm font-semibold">Berhasil</div>
+                    <div class="mt-0.5 text-sm text-emerald-700">{{ successMessage }}</div>
+                </div>
+            </div>
+
             <form class="space-y-6" @submit.prevent="submit">
                 <!-- SECTION 1 — IDENTITAS -->
                 <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -326,4 +346,3 @@ function submitPassword() {
         </div>
     </AppLayout>
 </template>
-

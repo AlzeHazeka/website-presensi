@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import SidebarIcon from './SidebarIcon.vue';
 import SidebarNavItem from './SidebarNavItem.vue';
 import { useSidebarNavigationState } from '../../composables/useSidebarNavigationState';
+import { useSidebarState } from '../../composables/useSidebarState';
 import { isActiveHref } from '../../lib/navigation/isActiveHref';
 
 const props = defineProps({
@@ -27,6 +28,7 @@ const props = defineProps({
 const emit = defineEmits(['navigate']);
 
 const { isOpen, toggle, setOpen } = useSidebarNavigationState();
+const { setCollapsed } = useSidebarState();
 
 const isActive = computed(() => isActiveHref(props.currentUrl, props.item?.href));
 const hasActiveChild = computed(() => {
@@ -40,6 +42,12 @@ const open = computed(() => {
 });
 
 function onToggle() {
+    if (props.isDesktopCollapsed) {
+        setCollapsed(false);
+        setOpen(props.item?.id, true);
+        return;
+    }
+
     toggle(props.item?.id);
     if (hasActiveChild.value) setOpen(props.item?.id, true);
 }
@@ -47,10 +55,17 @@ function onToggle() {
 const buttonClasses = computed(() => {
     return [
         'relative flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400/40',
-        props.isCollapsed ? 'md:px-2' : '',
+        props.isCollapsed ? 'md:justify-center md:px-2' : '',
         (isActive.value || hasActiveChild.value)
             ? "bg-sky-500/10 text-sky-300 ring-1 ring-sky-500/20 after:content-[''] after:absolute after:inset-y-2 after:left-1 after:w-0.5 after:rounded-full after:bg-sky-400/80"
             : 'text-slate-200/85 hover:bg-white/5 hover:text-white/95',
+    ].join(' ');
+});
+
+const buttonContentClasses = computed(() => {
+    return [
+        'flex items-center gap-3',
+        props.isCollapsed ? 'md:justify-center md:gap-0' : '',
     ].join(' ');
 });
 
@@ -78,7 +93,7 @@ const submenuWrapperClasses = computed(() => {
         :aria-expanded="open ? 'true' : 'false'"
         :title="isCollapsed ? item.label : undefined"
     >
-        <span class="flex items-center gap-3">
+        <span :class="buttonContentClasses">
             <SidebarIcon :name="item.icon" :class="iconClasses" />
             <span :class="isCollapsed ? 'md:hidden' : ''">{{ item.label }}</span>
         </span>
@@ -114,4 +129,3 @@ const submenuWrapperClasses = computed(() => {
         </div>
     </Transition>
 </template>
-

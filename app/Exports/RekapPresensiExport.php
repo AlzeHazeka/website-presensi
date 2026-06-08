@@ -11,13 +11,15 @@ class RekapPresensiExport implements FromView
     protected $bulan;
     protected $tahun;
     protected $summary;
+    protected $period;
 
-    public function __construct($rekap, $bulan, $tahun, $summary = null)
+    public function __construct($rekap, $bulan, $tahun, $summary = null, $period = null)
     {
         $this->rekap = $rekap;
         $this->bulan = $bulan;
         $this->tahun = $tahun;
         $this->summary = $summary;
+        $this->period = $period;
     }
 
     public function view(): View
@@ -27,6 +29,7 @@ class RekapPresensiExport implements FromView
             'bulan' => $this->bulan,
             'tahun' => $this->tahun,
             'summary' => $this->summary,
+            'period' => $this->period,
         ]);
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Actions\Fortify;
 
 use App\Models\User;
+use App\Support\RoleCatalog;
 use App\Support\RoleSync;
 use App\Support\Permissions;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -34,7 +35,7 @@ class UpdateUserProfileInformation implements UpdatesUserProfileInformation
             'gaji' => ['nullable', 'integer'],
             'tipe_gaji' => ['nullable', 'in:harian,bulanan'],
             'status' => ['nullable', 'in:aktif,tidak aktif'],
-            'role' => ['nullable', Rule::in(config('app.user_roles'))],
+            'role' => ['nullable', Rule::in(RoleCatalog::availableRoleNames())],
             'photo' => ['nullable', 'mimes:jpg,jpeg,png', 'max:1024'],
         ];
 

@@ -44,6 +44,10 @@ export function useSidebarState() {
         isCollapsed.value = !isCollapsed.value;
     }
 
+    function setCollapsed(value) {
+        isCollapsed.value = Boolean(value);
+    }
+
     function openMobile() {
         isMobileOpen.value = true;
     }
@@ -60,6 +64,7 @@ export function useSidebarState() {
         isCollapsed,
         isMobileOpen,
         toggleCollapsed,
+        setCollapsed,
         openMobile,
         closeMobile,
         toggleMobile,

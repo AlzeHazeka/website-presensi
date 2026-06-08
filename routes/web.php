@@ -102,6 +102,12 @@ Route::middleware([
         Route::post('/presensi/update/{id}', [AdminPresensiController::class, 'updatePresensi'])
             ->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_EDIT)
             ->name('presensi.update');
+        Route::get('/presensi/lembur/{id}/edit', [AdminPresensiController::class, 'editLembur'])
+            ->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_EDIT)
+            ->name('presensi.lembur.edit');
+        Route::post('/presensi/lembur/{id}', [AdminPresensiController::class, 'updateLembur'])
+            ->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_EDIT)
+            ->name('presensi.lembur.update');
 
         Route::get('/presensi/create-manual', [AdminPresensiController::class, 'createManualPresensi'])
             ->middleware(EnsurePermission::class.':'.Permissions::PRESENSI_MANUAL)

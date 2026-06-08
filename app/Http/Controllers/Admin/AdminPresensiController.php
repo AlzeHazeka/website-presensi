@@ -10,6 +10,7 @@ use App\Models\Izin;
 use App\Models\Lembur;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Barryvdh\DomPDF\Facade as PDF;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\Concerns\FromArray;
@@ -21,6 +22,9 @@ use App\Exports\PresensiByDateExport;
 use App\Support\MonthlyPresensiRekap;
 use App\Support\OfficeLocation;
 use App\Support\ManualOperationalInput;
+use App\Services\Presensi\DailyOperationalRecapService;
+use App\Services\Presensi\LemburUpdateService;
+use App\Services\Presensi\UserMonthlyOperationalRecapService;
 
 class AdminPresensiController extends Controller
 {
@@ -30,58 +34,28 @@ class AdminPresensiController extends Controller
     }
 
     // 📌 1. Lihat Presensi Berdasarkan Tanggal
-    public function presensiByDate(Request $request)
+    public function presensiByDate(Request $request, DailyOperationalRecapService $dailyRecap)
     {
         $tanggal = $request->input('tanggal') ?? Carbon::today()->format('Y-m-d');
-
-        $presensi = Presensi::whereDate('tanggal', $tanggal)->with('user')->get();
-        $izinCount = Izin::whereDate('tanggal_izin', $tanggal)->count();
-        $lemburByUser = Lembur::whereDate('tanggal', $tanggal)->get(['user_id'])->groupBy('user_id');
-        $lemburCount = $lemburByUser->count();
-
-        $belumCheckoutCount = $presensi->filter(fn (Presensi $item) => $item->jam_masuk && ! $item->jam_keluar)->count();
-        $hadirLengkapCount = $presensi->filter(fn (Presensi $item) => $item->jam_masuk && $item->jam_keluar)->count();
+        $result = $dailyRecap->build($tanggal);
 
         return Inertia::render('Admin/Presensi/ByDate', [
-            'tanggal' => $tanggal,
-            'presensi' => $presensi->map(function (Presensi $item) {
-                $diffInMinutes = $item->jam_masuk && $item->jam_keluar
-                    ? Carbon::parse($item->jam_masuk)->diffInMinutes(Carbon::parse($item->jam_keluar))
-                    : 0;
-
-                $hours = (int) floor($diffInMinutes / 60);
-                $minutes = (int) ($diffInMinutes % 60);
-
-                return [
-                    'id_presensi' => $item->id_presensi,
-                    'user_id' => $item->user_id,
-                    'nama' => $item->user?->nama,
-                    'jam_masuk' => $item->jam_masuk ? Carbon::parse($item->jam_masuk)->format('H:i') : null,
-                    'lokasi_masuk' => $item->lokasi_masuk,
-                    'jam_keluar' => $item->jam_keluar ? Carbon::parse($item->jam_keluar)->format('H:i') : null,
-                    'lokasi_keluar' => $item->lokasi_keluar,
-                    'total_jam_text' => $diffInMinutes > 0 ? "{$hours} Jam {$minutes} Menit" : '-',
-                    'total_minutes' => $diffInMinutes,
-                ];
-            }),
-            'total' => $presensi->count(),
-            'summary' => [
-                'total_hadir' => $presensi->count(),
-                'total_hadir_lengkap' => $hadirLengkapCount,
-                'total_belum_checkout' => $belumCheckoutCount,
-                'total_izin_cuti' => $izinCount,
-                'total_lembur' => $lemburCount,
-            ],
-            'lemburUserIds' => $lemburByUser->keys()->values()->all(),
+            'tanggal' => $result['tanggal'],
+            'presensi' => $result['rows'],
+            'total' => $result['total'],
+            'summary' => $result['summary'],
         ]);
     }
 
     // 📌 2. Lihat Presensi Berdasarkan Karyawan
-    public function presensiByUser(Request $request)
+    public function presensiByUser(Request $request, UserMonthlyOperationalRecapService $monthlyRecap)
     {
         $userId = $request->query('user_id');
         $bulan = (int) ($request->query('bulan') ?? now()->month);
         $tahun = (int) ($request->query('tahun') ?? now()->year);
+        $periodType = $request->query('period_type') === 'range' ? 'range' : 'month';
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
 
         // Ambil daftar karyawan untuk selector (urutkan agar mudah dicari)
         $users = User::orderBy('nama')->get();
@@ -92,8 +66,54 @@ class AdminPresensiController extends Controller
         }
 
         $jumlahHari = Carbon::create($tahun, $bulan, 1)->daysInMonth;
+        $periodLabel = Carbon::create($tahun, $bulan, 1)->translatedFormat('F Y');
+
+        if ($periodType === 'range') {
+            if (! $startDate || ! $endDate) {
+                return redirect()
+                    ->route('admin.presensi.by-user', $request->except(['period_type', 'start_date', 'end_date']))
+                    ->with('error', 'Tanggal mulai dan tanggal selesai wajib diisi untuk custom range.');
+            }
+
+            try {
+                $start = Carbon::parse($startDate)->startOfDay();
+                $end = Carbon::parse($endDate)->startOfDay();
+            } catch (\Throwable) {
+                return redirect()
+                    ->route('admin.presensi.by-user', $request->except(['period_type', 'start_date', 'end_date']))
+                    ->with('error', 'Format tanggal custom range tidak valid.');
+            }
+
+            if ($end->lessThan($start)) {
+                return redirect()
+                    ->route('admin.presensi.by-user', $request->except(['period_type', 'start_date', 'end_date']))
+                    ->with('error', 'Tanggal selesai tidak boleh lebih awal dari tanggal mulai.');
+            }
+
+            $jumlahHari = $start->diffInDays($end) + 1;
+
+            if ($jumlahHari > 31) {
+                return redirect()
+                    ->route('admin.presensi.by-user', $request->except(['period_type', 'start_date', 'end_date']))
+                    ->with('error', 'Custom range maksimal 31 hari.');
+            }
+
+            $startDate = $start->toDateString();
+            $endDate = $end->toDateString();
+            $periodLabel = $start->translatedFormat('d M Y').' - '.$end->translatedFormat('d M Y');
+        }
 
         $selectedUser = $userId ? User::where('user_id', $userId)->first() : null;
+        $emptySummary = [
+            'total_hari_hadir' => 0,
+            'total_hadir_lengkap' => 0,
+            'total_belum_checkout' => 0,
+            'total_izin_cuti' => 0,
+            'total_lembur' => 0,
+            'total_tidak_hadir' => 0,
+            'total_jam_kerja_minutes' => 0,
+            'total_jam_lembur_minutes' => 0,
+        ];
 
         // Jika belum pilih karyawan, return presensi kosong (UI akan tampil empty state)
         if (! $userId) {
@@ -111,59 +131,17 @@ class AdminPresensiController extends Controller
                 'tahun' => $tahun,
                 'userId' => null,
                 'jumlahHari' => $jumlahHari,
-                'izinDates' => [],
-                'lemburDates' => [],
+                'summary' => $emptySummary,
+                'periodType' => $periodType,
+                'startDate' => $startDate,
+                'endDate' => $endDate,
+                'periodLabel' => $periodLabel,
             ]);
         }
 
-        // Ambil presensi berdasarkan user, bulan, dan tahun
-        $presensiData = Presensi::where('user_id', $userId)
-            ->whereMonth('tanggal', $bulan)
-            ->whereYear('tanggal', $tahun)
-            ->get()
-            ->keyBy(fn ($item) => Carbon::parse($item->tanggal)->format('Y-m-d'));
-
-        $izinDates = Izin::where('user_id', $userId)
-            ->whereMonth('tanggal_izin', $bulan)
-            ->whereYear('tanggal_izin', $tahun)
-            ->pluck('tanggal_izin')
-            ->map(fn ($d) => Carbon::parse($d)->toDateString())
-            ->values()
-            ->all();
-
-        $lemburDates = Lembur::where('user_id', $userId)
-            ->whereMonth('tanggal', $bulan)
-            ->whereYear('tanggal', $tahun)
-            ->pluck('tanggal')
-            ->map(fn ($d) => Carbon::parse($d)->toDateString())
-            ->values()
-            ->all();
-
-        $presensi = [];
-        for ($i = 1; $i <= $jumlahHari; $i++) {
-            $tanggal = Carbon::create($tahun, $bulan, $i)->format('Y-m-d');
-            $hari = Carbon::create($tahun, $bulan, $i)->translatedFormat('l');
-            $data = $presensiData[$tanggal] ?? null;
-
-            $diffInMinutes = $data && $data->jam_masuk && $data->jam_keluar
-                ? Carbon::parse($data->jam_masuk)->diffInMinutes(Carbon::parse($data->jam_keluar))
-                : null;
-
-            $hours = is_int($diffInMinutes) ? (int) floor($diffInMinutes / 60) : 0;
-            $minutes = is_int($diffInMinutes) ? (int) ($diffInMinutes % 60) : 0;
-
-            $presensi[] = (object) [
-                'id_presensi' => $data->id_presensi ?? null,
-                'tanggal' => $tanggal,
-                'hari' => $hari,
-                'jam_masuk' => $data->jam_masuk ?? null,
-                'lokasi_masuk' => $data->lokasi_masuk ?? null,
-                'jam_keluar' => $data->jam_keluar ?? null,
-                'lokasi_keluar' => $data->lokasi_keluar ?? null,
-                'total_minutes' => $diffInMinutes,
-                'total_jam_text' => is_int($diffInMinutes) && $diffInMinutes > 0 ? "{$hours} Jam {$minutes} Menit" : '-',
-            ];
-        }
+        $result = $periodType === 'range'
+            ? $monthlyRecap->buildForRange($selectedUser, $startDate, $endDate)
+            : $monthlyRecap->build($selectedUser, $bulan, $tahun);
 
         return Inertia::render('Admin/Presensi/ByUser', [
             'users' => $users->map(fn (User $user) => [
@@ -182,23 +160,16 @@ class AdminPresensiController extends Controller
                     'status' => $selectedUser->status,
                 ]
                 : null,
-            'presensi' => collect($presensi)->map(fn ($item) => [
-                'id_presensi' => $item->id_presensi,
-                'tanggal' => $item->tanggal,
-                'hari' => $item->hari,
-                'jam_masuk' => $item->jam_masuk ? Carbon::parse($item->jam_masuk)->format('H:i') : null,
-                'lokasi_masuk' => $item->lokasi_masuk,
-                'jam_keluar' => $item->jam_keluar ? Carbon::parse($item->jam_keluar)->format('H:i') : null,
-                'lokasi_keluar' => $item->lokasi_keluar,
-                'total_minutes' => $item->total_minutes,
-                'total_jam_text' => $item->total_jam_text,
-            ])->values(),
+            'presensi' => $result['rows'],
             'bulan' => $bulan,
             'tahun' => $tahun,
             'userId' => $userId ? (int) $userId : null,
-            'jumlahHari' => $jumlahHari,
-            'izinDates' => $izinDates,
-            'lemburDates' => $lemburDates,
+            'jumlahHari' => $result['jumlah_hari'],
+            'summary' => $result['summary'],
+            'periodType' => $periodType,
+            'startDate' => $startDate,
+            'endDate' => $endDate,
+            'periodLabel' => $periodLabel,
         ]);
     }
 
@@ -238,6 +209,58 @@ class AdminPresensiController extends Controller
         ]);
 
         return redirect()->to($request->previous_url)->with('success', 'Presensi berhasil diperbarui!');
+    }
+
+    public function editLembur($id, LemburUpdateService $lemburUpdate)
+    {
+        $lembur = Lembur::with('user')->findOrFail($id);
+        $metadata = $lemburUpdate->metadata();
+        $tanggal = Carbon::parse($lembur->tanggal)->toDateString();
+
+        return Inertia::render('Admin/Presensi/EditLembur', [
+            'lembur' => [
+                'id_lembur' => (int) $lembur->id_lembur,
+                'nama' => $lembur->user?->nama,
+                'tanggal' => $tanggal,
+                'tanggal_human' => Carbon::parse($tanggal)->translatedFormat('d F Y'),
+                'jam_mulai' => $lembur->jam_mulai_lembur ? Carbon::parse($lembur->getRawOriginal('jam_mulai_lembur') ?? $lembur->jam_mulai_lembur)->format('H:i') : null,
+                'jam_selesai' => $lembur->jam_pulang_lembur ? Carbon::parse($lembur->getRawOriginal('jam_pulang_lembur') ?? $lembur->jam_pulang_lembur)->format('H:i') : null,
+                'status' => $metadata['status_field'] ? ($lembur->{$metadata['status_field']} ?? null) : null,
+                'note' => $metadata['note_field'] ? ($lembur->{$metadata['note_field']} ?? null) : null,
+                'status_field' => $metadata['status_field'],
+                'status_options' => $metadata['status_options'],
+                'note_field' => $metadata['note_field'],
+                'back_url' => route('admin.presensi.by-date', ['tanggal' => $tanggal]),
+            ],
+        ]);
+    }
+
+    public function updateLembur(Request $request, $id, LemburUpdateService $lemburUpdate)
+    {
+        $lembur = Lembur::findOrFail($id);
+        $metadata = $lemburUpdate->metadata();
+
+        $rules = [
+            'jam_mulai' => ['required', 'date_format:H:i'],
+            'jam_selesai' => ['nullable', 'date_format:H:i', 'after_or_equal:jam_mulai'],
+        ];
+
+        if ($metadata['status_field'] && $metadata['status_options'] !== []) {
+            $rules['status'] = ['nullable', Rule::in($metadata['status_options'])];
+        }
+
+        if ($metadata['note_field']) {
+            $rules['note'] = ['nullable', 'string', 'max:255'];
+        }
+
+        $validated = $request->validate($rules);
+        $lemburUpdate->update($lembur, $validated);
+
+        $tanggal = Carbon::parse($lembur->fresh()->tanggal)->toDateString();
+
+        return redirect()
+            ->route('admin.presensi.by-date', ['tanggal' => $tanggal])
+            ->with('success', 'Lembur berhasil diperbarui!');
     }
 
     // 📌 4. Tambah Presensi Manual
@@ -303,7 +326,7 @@ class AdminPresensiController extends Controller
                     'ua_keluar' => (string) $request->userAgent(),
                 ], $timezone);
 
-                return redirect()->route('admin.presensi.by-date')->with('success', 'Presensi manual berhasil ditambahkan!');
+                return redirect()->route('admin.presensi.create')->with('success', 'Presensi manual berhasil ditambahkan.');
             }
 
             if ($operationType === 'izin') {
@@ -319,7 +342,7 @@ class AdminPresensiController extends Controller
                     'keterangan' => $validated['keterangan'] ?? null,
                 ], $timezone);
 
-                return redirect()->route('admin.presensi.create')->with('success', 'Izin/cuti manual berhasil ditambahkan!');
+                return redirect()->route('admin.presensi.create')->with('success', 'Izin/Cuti manual berhasil ditambahkan.');
             }
 
             // lembur
@@ -357,7 +380,7 @@ class AdminPresensiController extends Controller
                 'ua_selesai' => (string) $request->userAgent(),
             ], $timezone);
 
-            return redirect()->route('admin.presensi.create')->with('success', 'Lembur manual berhasil ditambahkan!');
+            return redirect()->route('admin.presensi.create')->with('success', 'Lembur manual berhasil ditambahkan.');
         } catch (\RuntimeException $e) {
             return back()->with('error', $e->getMessage());
         }
@@ -369,99 +392,166 @@ class AdminPresensiController extends Controller
     {
         \Carbon\Carbon::setLocale('id');
 
-        $bulan = $request->input('bulan', date('m'));
-        $tahun = $request->input('tahun', date('Y'));
+        $period = $this->resolveRekapPeriod($request);
 
-        $bulanInt = (int) $bulan;
-        $tahunInt = (int) $tahun;
-        $result = MonthlyPresensiRekap::build($tahunInt, $bulanInt);
+        if (isset($period['redirect'])) {
+            return $period['redirect'];
+        }
+
+        $result = $period['period_type'] === 'range'
+            ? MonthlyPresensiRekap::buildForRange($period['start_date'], $period['end_date'])
+            : MonthlyPresensiRekap::build((int) $period['tahun'], (int) $period['bulan']);
 
         return Inertia::render('Admin/Presensi/Rekap', [
             'rekap' => $result['rekap'],
-            'bulan' => $bulan,
-            'tahun' => $tahun,
+            'bulan' => $period['bulan'],
+            'tahun' => $period['tahun'],
             'summary' => $result['summary'],
+            'periodType' => $period['period_type'],
+            'startDate' => $period['start_date'],
+            'endDate' => $period['end_date'],
+            'periodLabel' => $period['period_label'],
+            'reportTitle' => $period['report_title'],
         ]);
     }
 
-    public function exportExcel(Request $request)
+    public function exportExcel(Request $request, DailyOperationalRecapService $dailyRecap)
     {
         if ($request->filled('tanggal')) {
             $tanggal = $request->input('tanggal');
+            $result = $dailyRecap->build($tanggal);
 
-            $presensi = Presensi::whereDate('tanggal', $tanggal)->with('user')->get();
-            $izinCount = Izin::whereDate('tanggal_izin', $tanggal)->count();
-            $lemburCount = Lembur::whereDate('tanggal', $tanggal)->count();
-            $belumCheckoutCount = $presensi->filter(fn (Presensi $item) => $item->jam_masuk && ! $item->jam_keluar)->count();
-
-            $summary = [
-                'total_hadir' => $presensi->count(),
-                'total_belum_checkout' => $belumCheckoutCount,
-                'total_izin_cuti' => $izinCount,
-                'total_lembur' => $lemburCount,
-            ];
-
-            return Excel::download(new PresensiByDateExport($presensi, $tanggal, $summary), "presensi-{$tanggal}.xlsx");
+            return Excel::download(new PresensiByDateExport(collect($result['rows']), $result['tanggal'], $result['summary']), "presensi-{$result['tanggal']}.xlsx");
         }
 
-        $bulan = $request->input('bulan', date('m'));
-        $tahun = $request->input('tahun', date('Y'));
-        $bulanInt = (int) $bulan;
-        $tahunInt = (int) $tahun;
-        $result = MonthlyPresensiRekap::build($tahunInt, $bulanInt);
+        $period = $this->resolveRekapPeriod($request);
 
-        $fileName = "rekap-presensi-{$bulan}-{$tahun}.xlsx";
-        return Excel::download(new RekapPresensiExport($result['rekap'], $bulan, $tahun, $result['summary']), $fileName);
+        if (isset($period['redirect'])) {
+            return $period['redirect'];
+        }
+
+        $result = $period['period_type'] === 'range'
+            ? MonthlyPresensiRekap::buildForRange($period['start_date'], $period['end_date'])
+            : MonthlyPresensiRekap::build((int) $period['tahun'], (int) $period['bulan']);
+
+        $fileName = $period['period_type'] === 'range'
+            ? "rekap-presensi-{$period['start_date']}-{$period['end_date']}.xlsx"
+            : "rekap-presensi-{$period['bulan']}-{$period['tahun']}.xlsx";
+
+        return Excel::download(new RekapPresensiExport($result['rekap'], $period['bulan'], $period['tahun'], $result['summary'], $period), $fileName);
     }
 
-    public function exportPDF(Request $request)
+    public function exportPDF(Request $request, DailyOperationalRecapService $dailyRecap)
     {
         $tanggal = $request->input('tanggal') ?? Carbon::today()->format('Y-m-d');
-
-        $presensi = Presensi::whereDate('tanggal', $tanggal)->with('user')->get();
-
-        $izinCount = Izin::whereDate('tanggal_izin', $tanggal)->count();
-        $lemburByUser = Lembur::whereDate('tanggal', $tanggal)->get(['user_id'])->groupBy('user_id');
-        $lemburCount = $lemburByUser->count();
-        $belumCheckoutCount = $presensi->filter(fn (Presensi $item) => $item->jam_masuk && ! $item->jam_keluar)->count();
-
-        $summary = [
-            'total_hadir' => $presensi->count(),
-            'total_belum_checkout' => $belumCheckoutCount,
-            'total_izin_cuti' => $izinCount,
-            'total_lembur' => $lemburCount,
-        ];
+        $result = $dailyRecap->build($tanggal);
 
         return FacadePdf::loadView('admin.export_pdf', [
-            'tanggal' => $tanggal,
-            'presensi' => $presensi,
-            'summary' => $summary,
-            'lemburUserIds' => $lemburByUser->keys()->values()->all(),
+            'tanggal' => $result['tanggal'],
+            'presensi' => $result['rows'],
+            'summary' => $result['summary'],
             'generatedAt' => Carbon::now(config('app.timezone'))->translatedFormat('d F Y H:i'),
             'timezoneLabel' => 'Asia/Jakarta (WIB)',
-        ])->download("presensi-{$tanggal}.pdf");
+        ])->download("presensi-{$result['tanggal']}.pdf");
     }
 
     public function exportRekapPDF(Request $request)
     {
-        $bulan = $request->input('bulan', date('m'));
-        $tahun = $request->input('tahun', date('Y'));
+        $period = $this->resolveRekapPeriod($request);
 
-        $bulanInt = (int) $bulan;
-        $tahunInt = (int) $tahun;
+        if (isset($period['redirect'])) {
+            return $period['redirect'];
+        }
 
-        $result = MonthlyPresensiRekap::build($tahunInt, $bulanInt);
+        $result = $period['period_type'] === 'range'
+            ? MonthlyPresensiRekap::buildForRange($period['start_date'], $period['end_date'])
+            : MonthlyPresensiRekap::build((int) $period['tahun'], (int) $period['bulan']);
 
         $generatedAt = Carbon::now(config('app.timezone'))->translatedFormat('d F Y H:i');
 
         return FacadePdf::loadView('admin.export_rekap_presensi_pdf', [
-            'bulan' => $bulan,
-            'tahun' => $tahun,
+            'bulan' => $period['bulan'],
+            'tahun' => $period['tahun'],
             'rekap' => $result['rekap'],
             'summary' => $result['summary'],
+            'period' => $period,
             'generatedAt' => $generatedAt,
             'timezoneLabel' => 'Asia/Jakarta (WIB)',
-        ])->download("rekap-presensi-{$bulan}-{$tahun}.pdf");
+        ])->download($period['period_type'] === 'range'
+            ? "rekap-presensi-{$period['start_date']}-{$period['end_date']}.pdf"
+            : "rekap-presensi-{$period['bulan']}-{$period['tahun']}.pdf");
+    }
+
+    private function resolveRekapPeriod(Request $request): array
+    {
+        $periodType = $request->query('period_type') === 'range' ? 'range' : 'month';
+        $bulan = str_pad((string) $request->input('bulan', date('m')), 2, '0', STR_PAD_LEFT);
+        $tahun = (string) $request->input('tahun', date('Y'));
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
+
+        if ($periodType === 'range') {
+            if (! $startDate || ! $endDate) {
+                return [
+                    'redirect' => redirect()
+                        ->route('admin.presensi.rekap.presensi', $request->except(['period_type', 'start_date', 'end_date']))
+                        ->with('error', 'Tanggal mulai dan tanggal selesai wajib diisi untuk custom range.'),
+                ];
+            }
+
+            try {
+                $start = Carbon::parse($startDate)->startOfDay();
+                $end = Carbon::parse($endDate)->startOfDay();
+            } catch (\Throwable) {
+                return [
+                    'redirect' => redirect()
+                        ->route('admin.presensi.rekap.presensi', $request->except(['period_type', 'start_date', 'end_date']))
+                        ->with('error', 'Format tanggal custom range tidak valid.'),
+                ];
+            }
+
+            if ($end->lessThan($start)) {
+                return [
+                    'redirect' => redirect()
+                        ->route('admin.presensi.rekap.presensi', $request->except(['period_type', 'start_date', 'end_date']))
+                        ->with('error', 'Tanggal selesai tidak boleh lebih awal dari tanggal mulai.'),
+                ];
+            }
+
+            $daysInPeriod = (int) $start->diffInDays($end) + 1;
+
+            if ($daysInPeriod > 31) {
+                return [
+                    'redirect' => redirect()
+                        ->route('admin.presensi.rekap.presensi', $request->except(['period_type', 'start_date', 'end_date']))
+                        ->with('error', 'Custom range maksimal 31 hari.'),
+                ];
+            }
+
+            return [
+                'period_type' => 'range',
+                'bulan' => $bulan,
+                'tahun' => $tahun,
+                'start_date' => $start->toDateString(),
+                'end_date' => $end->toDateString(),
+                'period_label' => $start->translatedFormat('d M Y').' - '.$end->translatedFormat('d M Y'),
+                'report_title' => 'Rekap Presensi Periode',
+                'days_in_period' => $daysInPeriod,
+            ];
+        }
+
+        $monthDate = Carbon::create((int) $tahun, (int) $bulan, 1);
+
+        return [
+            'period_type' => 'month',
+            'bulan' => $bulan,
+            'tahun' => $tahun,
+            'start_date' => $monthDate->toDateString(),
+            'end_date' => $monthDate->copy()->endOfMonth()->toDateString(),
+            'period_label' => $monthDate->translatedFormat('F Y'),
+            'report_title' => 'Rekap Presensi Bulanan',
+            'days_in_period' => $monthDate->daysInMonth,
+        ];
     }
 
 }

@@ -1,16 +1,18 @@
 @php
     \Carbon\Carbon::setLocale('id');
-    $period = \Carbon\Carbon::createFromFormat('Y-m', "{$tahun}-{$bulan}")->translatedFormat('F Y');
+    $period = $period ?? [];
+    $periodLabel = $period['period_label'] ?? \Carbon\Carbon::createFromFormat('Y-m', "{$tahun}-{$bulan}")->translatedFormat('F Y');
+    $title = $period['report_title'] ?? 'Rekap Presensi Bulanan';
 @endphp
 
 <table>
     <tbody>
         <tr>
-            <td><strong>Rekap Presensi Bulanan</strong></td>
+            <td><strong>{{ $title }}</strong></td>
         </tr>
         <tr>
             <td>Periode</td>
-            <td>{{ $period }}</td>
+            <td>{{ $periodLabel }}</td>
         </tr>
         @if (!empty($summary))
             <tr>
@@ -34,6 +36,14 @@
                 <td>{{ $summary['totalLembur'] ?? 0 }}</td>
             </tr>
             <tr>
+                <td>Total jam kerja</td>
+                <td>{{ $summary['totalJamKerjaText'] ?? '0 Jam' }}</td>
+            </tr>
+            <tr>
+                <td>Total jam lembur</td>
+                <td>{{ $summary['totalJamLemburText'] ?? '0 Jam' }}</td>
+            </tr>
+            <tr>
                 <td>Rata-rata kehadiran (%)</td>
                 <td>{{ $summary['avgKehadiranPct'] ?? 0 }}</td>
             </tr>
@@ -49,9 +59,11 @@
             <th>Divisi/Posisi</th>
             <th>Role</th>
             <th>Status</th>
-            <th>Jumlah Presensi</th>
+            <th>Hari Hadir</th>
             <th>Jumlah Izin/Cuti</th>
-            <th>Jumlah Lembur</th>
+            <th>Hari Lembur</th>
+            <th>Total Jam Kerja</th>
+            <th>Total Jam Lembur</th>
             <th>Kehadiran (%)</th>
         </tr>
     </thead>
@@ -65,6 +77,8 @@
                 <td>{{ $r['jumlah_presensi'] ?? 0 }}</td>
                 <td>{{ $r['jumlah_izin'] ?? 0 }}</td>
                 <td>{{ $r['jumlah_lembur'] ?? 0 }}</td>
+                <td>{{ $r['total_jam_kerja_text'] ?? '0 Jam' }}</td>
+                <td>{{ $r['total_jam_lembur_text'] ?? '0 Jam' }}</td>
                 <td>{{ $r['kehadiran_pct'] ?? 0 }}</td>
             </tr>
         @endforeach

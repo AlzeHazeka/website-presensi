@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Link, useForm, usePage } from '@inertiajs/vue3';
 import Swal from 'sweetalert2';
 import AppLayout from '../../../Layouts/AppLayout.vue';
@@ -157,8 +157,9 @@ const operationMeta = computed(() => {
     };
 });
 
-const canUseOfficeLocation = computed(() => Boolean(props.officeLocation?.lokasi_string));
+const canUseOfficeLocation = computed(() => Boolean(props.officeLocation?.configured && props.officeLocation?.lokasi_string));
 const canUsePresetLocation = computed(() => Boolean(manualLocationPreset?.lokasi_string));
+const showOfficeLocationWarning = computed(() => !canUseOfficeLocation.value && !canUsePresetLocation.value);
 
 const canSubmit = computed(() => Boolean(form.user_id) && Boolean(form.tanggal));
 
@@ -192,12 +193,28 @@ async function confirmSubmit() {
 
     if (!result.isConfirmed) return;
 
-    form.post(route('admin.presensi.store'));
+    form.post(route('admin.presensi.store'), {
+        preserveScroll: true,
+        onSuccess: () => {
+            form.reset();
+            operationType.value = 'presensi';
+            form.operation_type = 'presensi';
+            showAdvancedLocation.value = false;
+        },
+    });
 }
 
 onMounted(() => {
     if (flashError.value) toast(flashError.value, 'error');
     if (flashSuccess.value) toast(flashSuccess.value, 'success');
+});
+
+watch(flashError, (message) => {
+    if (message) toast(message, 'error');
+});
+
+watch(flashSuccess, (message) => {
+    if (message) toast(message, 'success');
 });
 </script>
 
@@ -222,6 +239,13 @@ onMounted(() => {
         <div class="max-w-7xl mx-auto space-y-6">
             <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                 <div class="p-6 sm:p-8 space-y-5">
+                    <div v-if="flashSuccess" class="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                        {{ flashSuccess }}
+                    </div>
+                    <div v-if="flashError" class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-800">
+                        {{ flashError }}
+                    </div>
+
                     <div class="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
                         ℹ️ Manual input digunakan untuk kondisi khusus seperti kendala device atau GPS. Semua input tetap mengikuti business rules.
                     </div>
@@ -520,7 +544,7 @@ onMounted(() => {
                         </section>
                     </form>
 
-                    <div v-if="!canUseOfficeLocation" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    <div v-if="showOfficeLocationWarning" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                         ⚠️ Office location belum dikonfigurasi. Set env `OFFICE_LATITUDE` dan `OFFICE_LONGITUDE` agar tombol “Gunakan Lokasi Kantor” aktif.
                     </div>
                 </div>

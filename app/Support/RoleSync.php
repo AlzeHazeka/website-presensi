@@ -13,7 +13,7 @@ final class RoleSync
             return;
         }
 
-        if (! in_array($role, Roles::all(), true)) {
+        if (! in_array($role, RoleCatalog::availableRoleNames(), true)) {
             return;
         }
 
@@ -42,4 +42,3 @@ final class RoleSync
         }
     }
 }
-

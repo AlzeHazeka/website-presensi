@@ -13,7 +13,7 @@ final class Roles
      */
     public static function all(): array
     {
-        return config('app.user_roles', [self::SUPER_ADMIN, self::ADMIN, self::KARYAWAN]);
+        return [self::SUPER_ADMIN, self::ADMIN, self::KARYAWAN];
     }
 
     /**
@@ -21,7 +21,6 @@ final class Roles
      */
     public static function adminRoles(): array
     {
-        return config('app.admin_roles', [self::SUPER_ADMIN, self::ADMIN]);
+        return [self::SUPER_ADMIN, self::ADMIN];
     }
 }
-
