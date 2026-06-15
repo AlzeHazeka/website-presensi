@@ -19,6 +19,7 @@ function toDateInput(value) {
 }
 
 const form = useForm({
+    nik: props.user.nik ?? '',
     nama: props.user.nama ?? '',
     email: props.user.email ?? '',
     username: props.user.username ?? '',
@@ -109,6 +110,19 @@ function submitPassword() {
                         </div>
 
                         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                            <div>
+                                <label class="text-sm font-semibold text-slate-900" for="nik">NIK</label>
+                                <input
+                                    id="nik"
+                                    v-model="form.nik"
+                                    type="text"
+                                    inputmode="numeric"
+                                    class="mt-2 h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
+                                    placeholder="00001"
+                                />
+                                <div v-if="form.errors.nik" class="mt-1 text-xs font-medium text-rose-700">{{ form.errors.nik }}</div>
+                            </div>
+
                             <div>
                                 <label class="text-sm font-semibold text-slate-900" for="nama">Nama</label>
                                 <input

@@ -43,17 +43,17 @@ class MonthlyPresensiRekap
      *   }
      * }
      */
-    public static function build(int $year, int $month): array
+    public static function build(int $year, int $month, bool $includeInactive = false): array
     {
         Carbon::setLocale('id');
 
         $startDate = Carbon::create($year, $month, 1)->startOfDay();
         $endDate = $startDate->copy()->endOfMonth()->startOfDay();
 
-        return self::buildForRange($startDate->toDateString(), $endDate->toDateString());
+        return self::buildForRange($startDate->toDateString(), $endDate->toDateString(), $includeInactive);
     }
 
-    public static function buildForRange(string $startDate, string $endDate): array
+    public static function buildForRange(string $startDate, string $endDate, bool $includeInactive = false): array
     {
         Carbon::setLocale('id');
 
@@ -61,7 +61,10 @@ class MonthlyPresensiRekap
         $end = Carbon::parse($endDate)->startOfDay();
         $daysInPeriod = (int) $start->diffInDays($end) + 1;
 
-        $users = User::orderBy('nama')->get(['user_id', 'nama', 'posisi', 'role', 'status']);
+        $users = User::query()
+            ->when(! $includeInactive, fn ($query) => $query->where('status', 'aktif'))
+            ->orderBy('nama')
+            ->get(['user_id', 'nama', 'posisi', 'role', 'status']);
         $userIds = $users->pluck('user_id')->values();
 
         $presensiByUser = Presensi::whereIn('user_id', $userIds)
@@ -124,6 +127,7 @@ class MonthlyPresensiRekap
             'daysInPeriod' => $daysInPeriod,
             'totalKaryawan' => $users->count(),
             'totalKaryawanAktif' => $users->filter(fn (User $u) => strtolower((string) $u->status) === 'aktif')->count(),
+            'includeInactive' => $includeInactive,
             'totalPresensi' => (int) $rekap->sum('jumlah_presensi'),
             'totalIzin' => (int) $rekap->sum('jumlah_izin'),
             'totalLembur' => (int) $rekap->sum('jumlah_lembur'),

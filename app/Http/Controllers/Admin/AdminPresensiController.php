@@ -398,9 +398,10 @@ class AdminPresensiController extends Controller
             return $period['redirect'];
         }
 
+        $includeInactive = $request->boolean('include_inactive');
         $result = $period['period_type'] === 'range'
-            ? MonthlyPresensiRekap::buildForRange($period['start_date'], $period['end_date'])
-            : MonthlyPresensiRekap::build((int) $period['tahun'], (int) $period['bulan']);
+            ? MonthlyPresensiRekap::buildForRange($period['start_date'], $period['end_date'], $includeInactive)
+            : MonthlyPresensiRekap::build((int) $period['tahun'], (int) $period['bulan'], $includeInactive);
 
         return Inertia::render('Admin/Presensi/Rekap', [
             'rekap' => $result['rekap'],
@@ -412,6 +413,7 @@ class AdminPresensiController extends Controller
             'endDate' => $period['end_date'],
             'periodLabel' => $period['period_label'],
             'reportTitle' => $period['report_title'],
+            'includeInactive' => $includeInactive,
         ]);
     }
 
@@ -430,15 +432,19 @@ class AdminPresensiController extends Controller
             return $period['redirect'];
         }
 
+        $includeInactive = $request->boolean('include_inactive');
         $result = $period['period_type'] === 'range'
-            ? MonthlyPresensiRekap::buildForRange($period['start_date'], $period['end_date'])
-            : MonthlyPresensiRekap::build((int) $period['tahun'], (int) $period['bulan']);
+            ? MonthlyPresensiRekap::buildForRange($period['start_date'], $period['end_date'], $includeInactive)
+            : MonthlyPresensiRekap::build((int) $period['tahun'], (int) $period['bulan'], $includeInactive);
 
         $fileName = $period['period_type'] === 'range'
             ? "rekap-presensi-{$period['start_date']}-{$period['end_date']}.xlsx"
             : "rekap-presensi-{$period['bulan']}-{$period['tahun']}.xlsx";
 
-        return Excel::download(new RekapPresensiExport($result['rekap'], $period['bulan'], $period['tahun'], $result['summary'], $period), $fileName);
+        return Excel::download(new RekapPresensiExport($result['rekap'], $period['bulan'], $period['tahun'], $result['summary'], [
+            ...$period,
+            'include_inactive' => $includeInactive,
+        ]), $fileName);
     }
 
     public function exportPDF(Request $request, DailyOperationalRecapService $dailyRecap)
@@ -463,9 +469,10 @@ class AdminPresensiController extends Controller
             return $period['redirect'];
         }
 
+        $includeInactive = $request->boolean('include_inactive');
         $result = $period['period_type'] === 'range'
-            ? MonthlyPresensiRekap::buildForRange($period['start_date'], $period['end_date'])
-            : MonthlyPresensiRekap::build((int) $period['tahun'], (int) $period['bulan']);
+            ? MonthlyPresensiRekap::buildForRange($period['start_date'], $period['end_date'], $includeInactive)
+            : MonthlyPresensiRekap::build((int) $period['tahun'], (int) $period['bulan'], $includeInactive);
 
         $generatedAt = Carbon::now(config('app.timezone'))->translatedFormat('d F Y H:i');
 
@@ -474,7 +481,10 @@ class AdminPresensiController extends Controller
             'tahun' => $period['tahun'],
             'rekap' => $result['rekap'],
             'summary' => $result['summary'],
-            'period' => $period,
+            'period' => [
+                ...$period,
+                'include_inactive' => $includeInactive,
+            ],
             'generatedAt' => $generatedAt,
             'timezoneLabel' => 'Asia/Jakarta (WIB)',
         ])->download($period['period_type'] === 'range'

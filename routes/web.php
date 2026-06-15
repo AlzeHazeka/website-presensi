@@ -4,12 +4,15 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PresensiController;
 use App\Http\Controllers\Admin\AdminPresensiController;
+use App\Http\Controllers\Payroll\DailyPayrollController;
 use App\Http\Controllers\IzinController;
 use App\Http\Controllers\LemburController;
 use Inertia\Inertia;
 use App\Http\Middleware\EnsurePermission;
 use App\Http\Middleware\EnsureAnyPermission;
+use App\Http\Middleware\EnsureAnyRole;
 use App\Support\Permissions;
+use App\Support\Roles;
 
 // Rute untuk halaman utama
 Route::get('/', function () {
@@ -82,6 +85,15 @@ Route::middleware([
     Route::get('/lembur', [LemburController::class, 'index'])->middleware(EnsurePermission::class.':'.Permissions::LEMBUR_VIEW)->name('lembur.index');
     Route::post('/lembur/mulai', [LemburController::class, 'mulaiLembur'])->middleware(EnsurePermission::class.':'.Permissions::LEMBUR_CREATE)->name('lembur.mulai');
     Route::post('/lembur/pulang', [LemburController::class, 'pulangLembur'])->middleware(EnsurePermission::class.':'.Permissions::LEMBUR_CREATE)->name('lembur.pulang');
+
+    Route::prefix('payroll')->name('payroll.')->middleware([
+        EnsurePermission::class.':'.Permissions::PAYROLL_VIEW,
+        EnsureAnyRole::class.':'.implode('|', Roles::adminRoles()),
+    ])->group(function () {
+        Route::get('/daily', [DailyPayrollController::class, 'index'])->name('daily.index');
+        Route::post('/daily/calculate', [DailyPayrollController::class, 'calculate'])->name('daily.calculate');
+        Route::post('/daily/print', [DailyPayrollController::class, 'print'])->name('daily.print');
+    });
 
     // **Rute Presensi untuk Admin**
     Route::prefix('admin')->name('admin.')->middleware(EnsureAnyPermission::class.':'.Permissions::REPORT_DAILY_VIEW.'|'.Permissions::REPORT_BY_USER_VIEW.'|'.Permissions::REPORT_MONTHLY_VIEW)->group(function () {

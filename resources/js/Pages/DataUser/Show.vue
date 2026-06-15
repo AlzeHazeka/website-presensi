@@ -80,7 +80,11 @@ function initials(name) {
                         </div>
                     </div>
 
-                    <div class="grid w-full gap-3 sm:w-auto sm:grid-cols-2">
+                    <div class="grid w-full gap-3 sm:w-auto sm:grid-cols-3">
+                        <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                            <div class="text-xs font-semibold tracking-wider text-slate-500 uppercase">NIK</div>
+                            <div class="mt-1 text-sm font-semibold text-slate-900">{{ props.user.nik ?? '-' }}</div>
+                        </div>
                         <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                             <div class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Username</div>
                             <div class="mt-1 text-sm font-semibold text-slate-900">{{ props.user.username ?? '-' }}</div>
@@ -147,4 +151,3 @@ function initials(name) {
         </div>
     </AppLayout>
 </template>
-

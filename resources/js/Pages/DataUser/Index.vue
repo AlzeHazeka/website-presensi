@@ -129,7 +129,7 @@ function destroyUser(userId) {
                                 v-model="searchQuery"
                                 type="text"
                                 class="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
-                                placeholder="Nama / Username / Email…"
+                                placeholder="NIK / Nama / Username / Email…"
                                 @input="applyFilters({ immediate: false })"
                             />
                         </div>
@@ -242,8 +242,8 @@ function destroyUser(userId) {
 
                     <div class="mt-4 grid grid-cols-2 gap-2 text-xs">
                         <div class="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
-                            <div class="font-semibold text-slate-600">Username</div>
-                            <div class="mt-0.5 font-semibold text-slate-900">{{ user.username }}</div>
+                            <div class="font-semibold text-slate-600">NIK</div>
+                            <div class="mt-0.5 font-semibold text-slate-900">{{ user.nik ?? '-' }}</div>
                         </div>
                         <div class="rounded-xl bg-slate-50 px-3 py-2 ring-1 ring-slate-200">
                             <div class="font-semibold text-slate-600">Posisi</div>
@@ -279,7 +279,7 @@ function destroyUser(userId) {
                                     </div>
                                     <div class="min-w-0">
                                         <div class="truncate text-sm font-semibold text-slate-900">{{ user.nama }}</div>
-                                        <div class="truncate text-xs text-slate-600">#{{ user.user_id }} • {{ user.username }}</div>
+                                        <div class="truncate text-xs text-slate-600">{{ user.nik ?? '-' }} • {{ user.username }}</div>
                                     </div>
                                 </div>
                             </td>

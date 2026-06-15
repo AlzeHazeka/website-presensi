@@ -22,7 +22,7 @@ export function buildSidebarNavigation({ route, authz }) {
         },
     ];
 
-    if (can('canViewUsers') || canViewAnyReports || can('canManualPresensi') || can('canEditPresensi')) {
+    if (can('canViewUsers') || canViewAnyReports || can('canManualPresensi') || can('canEditPresensi') || can('canAccessDailyPayroll')) {
         groups.push({
             id: 'master',
             label: 'Master',
@@ -92,6 +92,17 @@ export function buildSidebarNavigation({ route, authz }) {
                                     ]
                                     : []),
                             ],
+                        },
+                    ]
+                    : []),
+                ...(can('canAccessDailyPayroll')
+                    ? [
+                        {
+                            id: 'payroll-daily',
+                            type: 'link',
+                            label: 'Hitung Gaji Harian',
+                            icon: 'cash',
+                            href: safeRoute(route, 'payroll.daily.index', '/payroll/daily'),
                         },
                     ]
                     : []),

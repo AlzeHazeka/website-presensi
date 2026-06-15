@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Support\Permissions;
 use App\Models\User;
+use App\Support\Permissions;
+use App\Support\RoleCatalog;
+use App\Support\RoleSync;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
-use App\Support\RoleCatalog;
-use App\Support\RoleSync;
 
 class UserController extends Controller
 {
@@ -33,13 +32,15 @@ class UserController extends Controller
         if ($q !== '') {
             $query->where(function ($builder) use ($q) {
                 $builder
-                    ->where('nama', 'like', "%{$q}%")
+                    ->where('nik', 'like', "%{$q}%")
+                    ->orWhere('nama', 'like', "%{$q}%")
                     ->orWhere('username', 'like', "%{$q}%")
                     ->orWhere('email', 'like', "%{$q}%");
             });
         }
 
         $users = $query->orderBy('nama')->paginate(20)->withQueryString();
+
         return Inertia::render('DataUser/Index', [
             'users' => $users,
             'filters' => [
@@ -63,7 +64,9 @@ class UserController extends Controller
     public function create()
     {
         $authUser = request()->user();
-        if (! $authUser || ! $authUser->can(Permissions::USERS_CREATE)) abort(403);
+        if (! $authUser || ! $authUser->can(Permissions::USERS_CREATE)) {
+            abort(403);
+        }
 
         return Inertia::render('DataUser/Create', [
             'defaultRole' => 'Karyawan',
@@ -75,9 +78,12 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $authUser = $request->user();
-        if (! $authUser || ! $authUser->can(Permissions::USERS_CREATE)) abort(403);
+        if (! $authUser || ! $authUser->can(Permissions::USERS_CREATE)) {
+            abort(403);
+        }
 
-        $request->validate([
+        $validated = $request->validate([
+            'nik' => ['nullable', 'string', 'max:50', 'unique:users,nik'],
             'nama' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'username' => 'required|string|max:20|unique:users,username',
@@ -94,22 +100,11 @@ class UserController extends Controller
         ]);
 
         $user = User::create([
-            'nama' => $request->input('nama'),
-            'email' => $request->input('email'),
-            'username' => $request->input('username'),
-            'alamat' => $request->input('alamat'),
-            'telepon' => $request->input('telepon'),
-            'posisi' => $request->input('posisi'),
-            'tanggal_lahir' => $request->input('tanggal_lahir'),
-            'tanggal_masuk' => $request->input('tanggal_masuk'),
-            'gaji' => $request->input('gaji'),
-            'tipe_gaji' => $request->input('tipe_gaji'),
-            'status' => $request->input('status'),
-            'role' => $request->input('role'),
-            'password' => Hash::make($request->input('password')),
+            ...$validated,
+            'password' => Hash::make($validated['password']),
         ]);
 
-        RoleSync::sync($user, $request->input('role'));
+        RoleSync::sync($user, $validated['role']);
 
         return redirect()->route('data-user.index')->with('success', 'User berhasil dibuat');
     }
@@ -118,9 +113,12 @@ class UserController extends Controller
     public function edit($id)
     {
         $authUser = request()->user();
-        if (! $authUser || ! $authUser->can(Permissions::USERS_EDIT)) abort(403);
+        if (! $authUser || ! $authUser->can(Permissions::USERS_EDIT)) {
+            abort(403);
+        }
 
         $user = User::findOrFail($id);
+
         return Inertia::render('DataUser/Edit', [
             'user' => $user,
         ]);
@@ -130,12 +128,15 @@ class UserController extends Controller
     public function update(Request $request, $id)
     {
         $authUser = $request->user();
-        if (! $authUser || ! $authUser->can(Permissions::USERS_EDIT)) abort(403);
+        if (! $authUser || ! $authUser->can(Permissions::USERS_EDIT)) {
+            abort(403);
+        }
 
         // Validasi data yang dikirimkan melalui form
-        $request->validate([
+        $validated = $request->validate([
+            'nik' => ['nullable', 'string', 'max:50', Rule::unique('users', 'nik')->ignore($id, 'user_id')],
             'nama' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $id .',user_id',
+            'email' => 'required|email|unique:users,email,'.$id.',user_id',
             'username' => 'required|string|max:20',
             'alamat' => 'nullable|string|max:100',
             'telepon' => 'nullable|string|max:15',
@@ -149,8 +150,8 @@ class UserController extends Controller
         ]);
 
         $user = User::findOrFail($id);
-        $user->update($request->all());
-        RoleSync::sync($user, $request->input('role'));
+        $user->update($validated);
+        RoleSync::sync($user, $validated['role']);
 
         return redirect()->route('data-user.edit', $id)->with('success', 'User berhasil diperbarui.');
     }
@@ -158,7 +159,9 @@ class UserController extends Controller
     public function updatePassword(Request $request, $id)
     {
         $authUser = $request->user();
-        if (! $authUser || ! $authUser->can(Permissions::PASSWORD_RESET)) abort(403);
+        if (! $authUser || ! $authUser->can(Permissions::PASSWORD_RESET)) {
+            abort(403);
+        }
 
         $request->validate([
             'password' => 'required|confirmed|min:6',
@@ -175,10 +178,13 @@ class UserController extends Controller
     public function destroy($id)
     {
         $authUser = request()->user();
-        if (! $authUser || ! $authUser->can(Permissions::USERS_DELETE)) abort(403);
+        if (! $authUser || ! $authUser->can(Permissions::USERS_DELETE)) {
+            abort(403);
+        }
 
         $user = User::findOrFail($id);
         $user->delete(); // Menghapus user berdasarkan ID
+
         return redirect()->route('data-user.index')->with('success', 'User berhasil dihapus');
     }
 }

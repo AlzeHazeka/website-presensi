@@ -45,6 +45,10 @@ const props = defineProps({
         type: String,
         default: 'Rekap Presensi Bulanan',
     },
+    includeInactive: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const selectedBulan = ref(props.bulan);
@@ -52,6 +56,7 @@ const selectedTahun = ref(props.tahun);
 const selectedPeriodType = ref(props.periodType === 'range' ? 'range' : 'month');
 const selectedStartDate = ref(props.startDate ?? '');
 const selectedEndDate = ref(props.endDate ?? '');
+const showInactiveEmployees = ref(props.includeInactive);
 const page = usePage();
 const flashError = computed(() => page.props.flash?.error ?? '');
 const authz = computed(() => page.props.authz ?? {});
@@ -86,6 +91,12 @@ watch(
     () => props.endDate,
     (value) => {
         selectedEndDate.value = value ?? '';
+    },
+);
+watch(
+    () => props.includeInactive,
+    (value) => {
+        showInactiveEmployees.value = !!value;
     },
 );
 
@@ -135,12 +146,14 @@ function requestParams() {
             period_type: 'range',
             start_date: selectedStartDate.value || undefined,
             end_date: selectedEndDate.value || undefined,
+            include_inactive: showInactiveEmployees.value ? 1 : undefined,
         };
     }
 
     return {
         bulan: selectedBulan.value,
         tahun: selectedTahun.value,
+        include_inactive: showInactiveEmployees.value ? 1 : undefined,
     };
 }
 
@@ -179,7 +192,7 @@ function sortIndicator(key) {
 function statusTone(status) {
     const s = String(status ?? '').toLowerCase();
     if (s === 'aktif') return 'success';
-    if (s === 'nonaktif' || s === 'inactive') return 'danger';
+    if (s === 'tidak aktif' || s === 'nonaktif' || s === 'inactive') return 'danger';
     return 'slate';
 }
 
@@ -309,13 +322,26 @@ function submit() {
                                 Export PDF
                             </a>
                         </div>
+
+                        <label class="inline-flex w-full cursor-pointer items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm sm:w-auto">
+                            <span class="font-semibold text-slate-700">Tampilkan karyawan tidak aktif</span>
+                            <input
+                                v-model="showInactiveEmployees"
+                                type="checkbox"
+                                class="h-5 w-5 rounded border-slate-300 text-sky-600 shadow-sm focus:ring-sky-500"
+                                @change="submit"
+                            />
+                        </label>
                     </form>
 
                     <div class="grid gap-3 md:grid-cols-3">
                         <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                             <div class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Karyawan aktif</div>
                             <div class="mt-1 text-xl font-semibold text-slate-900">{{ summary.totalKaryawanAktif }}</div>
-                            <div class="mt-1 text-xs text-slate-600">Dari {{ summary.totalKaryawan }} karyawan</div>
+                            <div class="mt-1 text-xs text-slate-600">
+                                <template v-if="showInactiveEmployees">Dari {{ summary.totalKaryawan }} karyawan</template>
+                                <template v-else>Nonaktif disembunyikan</template>
+                            </div>
                         </div>
                         <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                             <div class="text-xs font-semibold tracking-wider text-slate-500 uppercase">Rata-rata kehadiran</div>

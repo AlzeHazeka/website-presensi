@@ -1,0 +1,16 @@
+{
+  "name": "HRIS V2",
+  "short_name": "HRIS",
+  "description": "HRIS PT & CV Irfan Putera Sejahtera",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

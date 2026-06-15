@@ -130,6 +130,8 @@ final class Permissions
 
                 self::REPORT_EXPORT_PDF,
                 self::REPORT_EXPORT_EXCEL,
+
+                self::PAYROLL_VIEW,
             ];
         }
 
@@ -145,4 +147,3 @@ final class Permissions
         ];
     }
 }
-

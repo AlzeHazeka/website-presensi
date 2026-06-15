@@ -30,6 +30,7 @@ return [
     ],
     'unique'               => ':attribute sudah digunakan.',
     'attributes' => [
+        'nik' => 'NIK',
         'username' => 'Username',
         'password' => 'Password',
     ],

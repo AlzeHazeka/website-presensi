@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use App\Support\RoleAccess;
 use App\Support\RoleCatalog;
 use App\Support\Permissions;
+use App\Support\Roles;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -42,6 +43,9 @@ class HandleInertiaRequests extends Middleware
 
         $isSuperAdmin = $authUser ? $can($authUser, Permissions::SYSTEM_MANAGE) : false;
         $canViewPayroll = $authUser ? $can($authUser, Permissions::PAYROLL_VIEW) : false;
+        $canAccessDailyPayroll = $authUser
+            ? RoleAccess::userHasAnyRole($authUser, Roles::adminRoles())
+            : false;
 
         return array_merge(parent::share($request), [
             'userRoles' => fn () => RoleCatalog::availableRoleNames(),
@@ -53,6 +57,7 @@ class HandleInertiaRequests extends Middleware
                 'canManageProfile' => fn () => $authUser ? $can($authUser, Permissions::PROFILE_MANAGE) : false,
                 'canResetPassword' => fn () => $authUser ? $can($authUser, Permissions::PASSWORD_RESET) : false,
                 'canViewPayroll' => fn () => $authUser ? $can($authUser, Permissions::PAYROLL_VIEW) : false,
+                'canAccessDailyPayroll' => fn () => $canAccessDailyPayroll,
                 'canManagePayroll' => fn () => $authUser ? $can($authUser, Permissions::PAYROLL_MANAGE) : false,
                 'canProfileView' => fn () => $authUser ? $can($authUser, Permissions::PROFILE_VIEW) : false,
 
