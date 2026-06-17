@@ -91,6 +91,10 @@ Route::middleware([
         EnsureAnyRole::class.':'.implode('|', Roles::adminRoles()),
     ])->group(function () {
         Route::get('/daily', [DailyPayrollController::class, 'index'])->name('daily.index');
+        Route::get('/daily/calculate', fn () => redirect()
+            ->route('payroll.daily.index')
+            ->with('warning', 'Halaman hitung gaji telah di-reset. Silakan pilih karyawan dan periode kembali.'))
+            ->name('daily.calculate.reset');
         Route::post('/daily/calculate', [DailyPayrollController::class, 'calculate'])->name('daily.calculate');
         Route::post('/daily/print', [DailyPayrollController::class, 'print'])->name('daily.print');
     });

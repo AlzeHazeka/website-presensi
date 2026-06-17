@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue';
-import { router, useForm, usePage } from '@inertiajs/vue3';
+import axios from 'axios';
+import { useForm, usePage } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import DatePickerField from '../../Components/Forms/DatePickerField.vue';
 import AlertMessage from '../../Components/UI/AlertMessage.vue';
@@ -34,29 +35,30 @@ const form = useForm({
     tanggal_mulai: props.filters?.tanggal_mulai ?? '',
     tanggal_selesai: props.filters?.tanggal_selesai ?? '',
     gaji_per_hari: props.filters?.gaji_per_hari ?? '',
-    overtime_hourly_rate: props.filters?.overtime_hourly_rate ?? '',
     mode: props.filters?.mode ?? 'preview',
 });
+const localResult = ref(props.result);
+const localSelectedEmployee = ref(props.selectedEmployee);
+const hasLoadedAttendance = ref(Boolean(props.result));
+const hasCalculatedPayroll = ref(Boolean(props.result?.payroll?.is_calculated));
 
 const selectedEmployee = computed(() => {
-    if (props.selectedEmployee) return props.selectedEmployee;
+    if (localSelectedEmployee.value) return localSelectedEmployee.value;
     return props.employees.find((employee) => String(employee.user_id) === String(form.karyawan_id)) ?? null;
 });
 
-const attendanceRows = computed(() => props.result?.attendance ?? []);
-const summary = computed(() => props.result?.summary ?? null);
-const leaveSummary = computed(() => props.result?.leave_summary ?? { total_items: 0, total_days: 0, items: [] });
-const overtimeSummary = computed(() => props.result?.overtime_summary ?? { total_items: 0, total_valid_items: 0, total_overtime_hours_label: '0 jam 0 menit', payable_overtime_hours: 0, items: [] });
-const payroll = computed(() => props.result?.payroll ?? null);
-const hasResult = computed(() => Boolean(props.result));
+const attendanceRows = computed(() => localResult.value?.attendance ?? []);
+const summary = computed(() => localResult.value?.summary ?? null);
+const leaveSummary = computed(() => localResult.value?.leave_summary ?? { total_items: 0, total_days: 0, items: [] });
+const overtimeSummary = computed(() => localResult.value?.overtime_summary ?? { total_items: 0, total_valid_items: 0, total_overtime_hours_label: '0 jam 0 menit', payable_overtime_hours: 0, overtime_conversion_label: '0 hari kerja + 0 jam', items: [] });
+const payroll = computed(() => localResult.value?.payroll ?? null);
 const dailyWageNumber = computed(() => Number.parseFloat(String(form.gaji_per_hari || '0')) || 0);
 const hourlyWagePreview = computed(() => dailyWageNumber.value > 0 ? dailyWageNumber.value / 8 : null);
-const overtimeRateNumber = computed(() => Number.parseFloat(String(form.overtime_hourly_rate || '0')) || 0);
-const overtimeRatePreview = computed(() => overtimeRateNumber.value > 0 ? overtimeRateNumber.value : hourlyWagePreview.value);
-const canShowSlip = computed(() => Boolean(hasResult.value && payroll.value?.is_calculated));
+const canShowSlip = computed(() => hasCalculatedPayroll.value && Boolean(payroll.value?.is_calculated));
 const printForm = ref(null);
 const csrfToken = computed(() => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '');
 const localAlert = ref(null);
+const isSubmitting = ref(false);
 const isPrinting = ref(false);
 const validationMessages = computed(() => {
     const errors = form.errors ?? {};
@@ -64,6 +66,7 @@ const validationMessages = computed(() => {
     return [...new Set(Object.values(errors).flatMap((message) => Array.isArray(message) ? message : [message]).filter(Boolean))];
 });
 const flashError = computed(() => page.props.flash?.error ?? '');
+const flashWarning = computed(() => page.props.flash?.warning ?? '');
 const flashSuccess = computed(() => page.props.flash?.success ?? '');
 const pageAlert = computed(() => {
     if (localAlert.value) return localAlert.value;
@@ -75,6 +78,7 @@ const pageAlert = computed(() => {
         };
     }
     if (flashError.value) return { type: 'error', message: flashError.value };
+    if (flashWarning.value) return { type: 'warning', message: flashWarning.value };
     if (flashSuccess.value) return { type: 'success', message: flashSuccess.value };
 
     return null;
@@ -88,37 +92,54 @@ const dailyWageInputWarning = computed(() => {
 
     return '';
 });
-const overtimeInputWarning = computed(() => {
-    if (form.overtime_hourly_rate === '' || form.overtime_hourly_rate === null || form.overtime_hourly_rate === undefined) return '';
-    const value = Number(form.overtime_hourly_rate);
-    if (!Number.isFinite(value)) return 'Tarif lembur per jam harus berupa angka.';
-    if (value < 0) return 'Tarif lembur per jam tidak boleh negatif.';
-
-    return '';
-});
 const attendanceCalculationWarning = computed(() => {
-    if (!hasResult.value || attendanceRows.value.length === 0) return '';
+    if (!hasLoadedAttendance.value || attendanceRows.value.length === 0) return '';
     if ((summary.value?.total_valid_attendance_days ?? 0) > 0) return '';
 
     return 'Tidak ada presensi lengkap dan valid yang dapat dihitung pada periode ini.';
 });
 
-function submit(mode) {
+async function submit(mode) {
     if (!validateForm(mode)) return;
 
     form.mode = mode;
     localAlert.value = null;
-    form.post(route('payroll.daily.calculate'), {
-        preserveScroll: true,
-        onSuccess: () => {
-            localAlert.value = null;
-        },
-    });
+    form.clearErrors();
+    isSubmitting.value = true;
+
+    try {
+        const response = await axios.post(route('payroll.daily.calculate'), {
+            karyawan_id: form.karyawan_id,
+            tanggal_mulai: form.tanggal_mulai,
+            tanggal_selesai: form.tanggal_selesai,
+            gaji_per_hari: form.gaji_per_hari,
+            mode,
+        }, {
+            headers: {
+                Accept: 'application/json',
+            },
+        });
+
+        const payload = response.data ?? {};
+        setLoadedResult(payload);
+        localAlert.value = null;
+    } catch (error) {
+        handleSubmitError(error);
+    } finally {
+        isSubmitting.value = false;
+    }
 }
 
 function resetPage() {
     localAlert.value = null;
-    router.get(route('payroll.daily.index'));
+    form.clearErrors();
+    form.karyawan_id = '';
+    form.tanggal_mulai = '';
+    form.tanggal_selesai = '';
+    form.gaji_per_hari = '';
+    form.mode = 'preview';
+    clearLoadedResult();
+    isPrinting.value = false;
 }
 
 function printSlip() {
@@ -138,6 +159,60 @@ function printSlip() {
 
 function setLocalWarning(message) {
     localAlert.value = { type: 'warning', message };
+}
+
+function setLoadedResult(payload) {
+    localSelectedEmployee.value = payload.employee ?? null;
+    localResult.value = payload.result ?? {
+        attendance: payload.attendance ?? payload.attendances ?? [],
+        attendances: payload.attendances ?? payload.attendance ?? [],
+        summary: payload.summary ?? payload.attendance_summary ?? null,
+        attendance_summary: payload.attendance_summary ?? payload.summary ?? null,
+        leave_summary: payload.leave_summary ?? { total_items: 0, total_days: 0, items: [] },
+        overtime_summary: payload.overtime_summary ?? { total_items: 0, total_valid_items: 0, total_overtime_hours_label: '0 jam 0 menit', payable_overtime_hours: 0, overtime_conversion_label: '0 hari kerja + 0 jam', items: [] },
+        payroll: payload.payroll ?? null,
+        period: payload.period ?? null,
+    };
+    hasLoadedAttendance.value = true;
+    hasCalculatedPayroll.value = Boolean(localResult.value?.payroll?.is_calculated);
+}
+
+function clearLoadedResult() {
+    localResult.value = null;
+    localSelectedEmployee.value = null;
+    hasLoadedAttendance.value = false;
+    hasCalculatedPayroll.value = false;
+}
+
+function clearCalculatedPayroll() {
+    hasCalculatedPayroll.value = false;
+
+    if (!localResult.value?.payroll) return;
+
+    localResult.value = {
+        ...localResult.value,
+        payroll: {
+            ...localResult.value.payroll,
+            is_calculated: false,
+        },
+    };
+}
+
+function handleSubmitError(error) {
+    const response = error?.response;
+    const errors = response?.data?.errors ?? null;
+
+    if (response?.status === 422 && errors) {
+        form.setError(Object.fromEntries(
+            Object.entries(errors).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]),
+        ));
+        return;
+    }
+
+    localAlert.value = {
+        type: 'error',
+        message: response?.data?.message || 'Terjadi kesalahan saat memproses penggajian. Silakan coba lagi.',
+    };
 }
 
 function validateForm(mode) {
@@ -175,18 +250,6 @@ function validateForm(mode) {
         }
     }
 
-    if (form.overtime_hourly_rate !== '' && form.overtime_hourly_rate !== null && form.overtime_hourly_rate !== undefined) {
-        const overtimeRate = Number(form.overtime_hourly_rate);
-        if (!Number.isFinite(overtimeRate)) {
-            setLocalWarning('Tarif lembur per jam harus berupa angka.');
-            return false;
-        }
-        if (overtimeRate < 0) {
-            setLocalWarning('Tarif lembur per jam tidak boleh negatif.');
-            return false;
-        }
-    }
-
     return true;
 }
 
@@ -214,10 +277,20 @@ function employeeLabel(employee) {
 }
 
 watch(
-    () => [form.karyawan_id, form.tanggal_mulai, form.tanggal_selesai, form.gaji_per_hari, form.overtime_hourly_rate],
+    () => [form.karyawan_id, form.tanggal_mulai, form.tanggal_selesai],
     () => {
         localAlert.value = null;
         form.clearErrors();
+        clearLoadedResult();
+    },
+);
+
+watch(
+    () => form.gaji_per_hari,
+    () => {
+        localAlert.value = null;
+        form.clearErrors('gaji_per_hari');
+        clearCalculatedPayroll();
     },
 );
 </script>
@@ -265,9 +338,9 @@ watch(
                         <button
                             type="submit"
                             class="inline-flex h-11 w-full items-center justify-center rounded-xl bg-sky-600 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-60 lg:w-auto"
-                            :disabled="form.processing"
+                            :disabled="isSubmitting"
 	                        >
-	                            {{ form.processing ? 'Memproses...' : 'Tampilkan Presensi' }}
+	                            {{ isSubmitting ? 'Memproses...' : 'Tampilkan Presensi' }}
 	                        </button>
 	                    </div>
 
@@ -278,7 +351,7 @@ watch(
                 </form>
             </section>
 
-            <section v-if="selectedEmployee && hasResult" class="grid gap-6 lg:grid-cols-12">
+            <section v-if="selectedEmployee && hasLoadedAttendance" class="grid gap-6 lg:grid-cols-12">
                 <div class="space-y-6 lg:col-span-7">
                     <section class="rounded-2xl border border-slate-200 bg-white shadow-sm">
                         <div class="p-6 sm:p-8">
@@ -359,7 +432,7 @@ watch(
 	                        </div>
 	                    </section>
 
-	                    <section v-if="hasResult" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+	                    <section v-if="hasLoadedAttendance" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
 	                        <div class="border-b border-slate-200 px-6 py-4 sm:px-8">
 	                            <div class="text-base font-semibold text-slate-900">Izin / Cuti Periode Ini</div>
 	                            <div class="mt-1 text-sm text-slate-600">Izin/cuti disetujui hanya ditampilkan sebagai informasi.</div>
@@ -403,26 +476,37 @@ watch(
 	                        </div>
 	                    </section>
 
-	                    <section v-if="hasResult" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+	                    <section v-if="hasLoadedAttendance" class="rounded-2xl border border-slate-200 bg-white shadow-sm">
 	                        <div class="border-b border-slate-200 px-6 py-4 sm:px-8">
 	                            <div class="text-base font-semibold text-slate-900">Lembur Periode Ini</div>
 	                            <div class="mt-1 text-sm text-slate-600">Lembur lengkap dan valid masuk sebagai tambahan pendapatan.</div>
 	                        </div>
 
-	                        <div class="grid gap-3 p-6 sm:grid-cols-3 sm:p-8">
-	                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-	                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Lembur Disetujui</div>
-	                                <div class="mt-1 text-sm font-semibold text-slate-900">{{ overtimeSummary.total_items }} data</div>
+		                        <div class="grid gap-3 p-6 sm:grid-cols-2 xl:grid-cols-4 sm:p-8">
+		                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+		                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Lembur Disetujui</div>
+		                                <div class="mt-1 text-sm font-semibold text-slate-900">{{ overtimeSummary.total_items }} data</div>
 	                            </div>
 	                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
 	                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Jam Aktual</div>
 	                                <div class="mt-1 text-sm font-semibold text-slate-900">{{ overtimeSummary.total_overtime_hours_label }}</div>
 	                            </div>
 	                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-	                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Jam Dibayar</div>
-	                                <div class="mt-1 text-sm font-semibold text-slate-900">{{ overtimeSummary.payable_overtime_hours }} jam</div>
-	                            </div>
-	                        </div>
+		                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Jam Dibayar</div>
+		                                <div class="mt-1 text-sm font-semibold text-slate-900">{{ overtimeSummary.payable_overtime_hours }} jam</div>
+		                            </div>
+		                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+		                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Konversi Lembur</div>
+		                                <div class="mt-1 text-sm font-semibold text-slate-900">{{ overtimeSummary.overtime_conversion_label }}</div>
+		                            </div>
+		                            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:col-span-2 xl:col-span-4">
+		                                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500">Pendapatan Lembur</div>
+		                                <div class="mt-1 text-sm font-semibold text-slate-900">{{ formatCurrency(payroll?.overtime_total ?? 0) }}</div>
+		                                <div class="mt-1 text-xs text-slate-600">
+		                                    Setiap 4 jam lembur dihitung sebagai 1 hari kerja. Sisa jam dihitung per jam.
+		                                </div>
+		                            </div>
+		                        </div>
 
 	                        <div v-if="(overtimeSummary.items?.length ?? 0) === 0" class="px-6 pb-6 sm:px-8 sm:pb-8">
 	                            <EmptyState title="Tidak ada lembur disetujui pada periode ini." />
@@ -492,29 +576,10 @@ watch(
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label class="mb-1 block text-sm font-semibold text-slate-900" for="overtime_hourly_rate">Tarif Lembur per Jam</label>
-                                    <input
-                                        id="overtime_hourly_rate"
-                                        v-model="form.overtime_hourly_rate"
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        placeholder="Kosongkan untuk ikut gaji per jam"
-                                        class="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-sky-400 focus:ring-2 focus:ring-sky-400/20"
-	                                    />
-	                                    <div class="mt-1 text-xs text-slate-500">
-	                                        Jika kosong, tarif lembur memakai gaji per jam.
-	                                        Tarif aktif: {{ overtimeRatePreview ? formatCurrency(overtimeRatePreview) : '-' }}
-	                                    </div>
-	                                    <div v-if="form.errors.overtime_hourly_rate" class="mt-1 text-xs font-medium text-rose-700">{{ form.errors.overtime_hourly_rate }}</div>
-	                                    <div v-else-if="overtimeInputWarning" class="mt-1 text-xs font-medium text-amber-700">{{ overtimeInputWarning }}</div>
-	                                </div>
-
-                                <div v-if="hasResult" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                                    <div class="flex items-start gap-2 font-semibold">
-                                        <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs ring-1 ring-amber-300">i</span>
-                                        <span>Pembulatan jam dibayar</span>
+	                                <div v-if="hasLoadedAttendance" class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+	                                    <div class="flex items-start gap-2 font-semibold">
+	                                        <span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-amber-100 text-xs ring-1 ring-amber-300">i</span>
+	                                        <span>Pembulatan jam dibayar</span>
                                     </div>
                                     <div class="mt-1 text-xs leading-relaxed">
                                         Pembulatan jam dibayar: sisa 0-30 menit dibulatkan ke bawah, 31-59 menit dibulatkan ke atas. Berlaku untuk jam kerja dan jam lembur.
@@ -524,22 +589,25 @@ watch(
                                         {{ summary?.rounded_payable_hours ?? 0 }} jam dibayar.
                                     </div>
                                     <div class="mt-1 text-xs leading-relaxed">
-                                        {{ overtimeSummary.total_overtime_hours_label }} lembur aktual menjadi
-                                        {{ overtimeSummary.payable_overtime_hours }} jam lembur dibayar.
-                                    </div>
-                                </div>
+	                                        {{ overtimeSummary.total_overtime_hours_label }} lembur aktual menjadi
+	                                        {{ overtimeSummary.payable_overtime_hours }} jam lembur dibayar.
+	                                    </div>
+	                                    <div class="mt-1 text-xs leading-relaxed">
+	                                        Konversi lembur: {{ overtimeSummary.overtime_conversion_label }}. Setiap 4 jam lembur dihitung sebagai 1 hari kerja.
+	                                    </div>
+	                                </div>
 
-	                                <div v-if="hasResult" class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-600">
+	                                <div v-if="hasLoadedAttendance" class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-600">
 	                                    Presensi tanpa jam masuk dan jam keluar lengkap tidak dihitung dalam penggajian. Lembur hanya dihitung jika status disetujui dan waktu lembur lengkap.
 	                                </div>
 
                                 <button
                                     type="button"
                                     class="inline-flex h-11 w-full items-center justify-center rounded-xl bg-slate-900 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                                    :disabled="form.processing"
+                                    :disabled="isSubmitting"
                                     @click="submit('calculate')"
 	                                >
-	                                    {{ form.processing ? 'Memproses...' : 'Hitung Gaji' }}
+	                                    {{ isSubmitting ? 'Memproses...' : 'Hitung Gaji' }}
 	                                </button>
                             </div>
                         </div>
@@ -622,17 +690,17 @@ watch(
                                         <span class="text-slate-500">Total Jam Lembur Aktual</span>
                                         <span class="font-semibold text-slate-900">{{ overtimeSummary.total_overtime_hours_label }}</span>
                                     </div>
-                                    <div class="flex justify-between gap-4">
-                                        <span class="text-slate-500">Total Jam Lembur Bayar</span>
-                                        <span class="font-semibold text-slate-900">{{ overtimeSummary.payable_overtime_hours }} jam</span>
-                                    </div>
-                                    <div class="flex justify-between gap-4">
-                                        <span class="text-slate-500">Tarif Lembur per Jam</span>
-                                        <span class="font-semibold text-slate-900">{{ formatCurrency(payroll.overtime_hourly_rate) }}</span>
-                                    </div>
-                                    <div class="flex justify-between gap-4">
-                                        <span class="text-slate-500">Pendapatan Lembur</span>
-                                        <span class="font-semibold text-slate-900">{{ formatCurrency(payroll.overtime_total) }}</span>
+	                                    <div class="flex justify-between gap-4">
+	                                        <span class="text-slate-500">Total Jam Lembur Bayar</span>
+	                                        <span class="font-semibold text-slate-900">{{ overtimeSummary.payable_overtime_hours }} jam</span>
+	                                    </div>
+	                                    <div class="flex justify-between gap-4">
+	                                        <span class="text-slate-500">Konversi Lembur</span>
+	                                        <span class="font-semibold text-slate-900">{{ overtimeSummary.overtime_conversion_label }}</span>
+	                                    </div>
+	                                    <div class="flex justify-between gap-4">
+	                                        <span class="text-slate-500">Pendapatan Lembur</span>
+	                                        <span class="font-semibold text-slate-900">{{ formatCurrency(payroll.overtime_total) }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -674,7 +742,7 @@ watch(
                         </div>
                     </section>
 
-                    <section v-if="hasResult" class="flex flex-col gap-2 sm:flex-row print:hidden">
+                    <section v-if="hasLoadedAttendance" class="flex flex-col gap-2 sm:flex-row print:hidden">
                         <button
                             type="button"
                             class="inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
@@ -709,11 +777,10 @@ watch(
                 <input type="hidden" name="_token" :value="csrfToken" />
                 <input type="hidden" name="mode" value="calculate" />
                 <input type="hidden" name="karyawan_id" :value="form.karyawan_id" />
-                <input type="hidden" name="tanggal_mulai" :value="form.tanggal_mulai" />
-                <input type="hidden" name="tanggal_selesai" :value="form.tanggal_selesai" />
-                <input type="hidden" name="gaji_per_hari" :value="form.gaji_per_hari" />
-                <input type="hidden" name="overtime_hourly_rate" :value="form.overtime_hourly_rate" />
-            </form>
+	                <input type="hidden" name="tanggal_mulai" :value="form.tanggal_mulai" />
+	                <input type="hidden" name="tanggal_selesai" :value="form.tanggal_selesai" />
+	                <input type="hidden" name="gaji_per_hari" :value="form.gaji_per_hari" />
+	            </form>
         </div>
     </AppLayout>
 </template>

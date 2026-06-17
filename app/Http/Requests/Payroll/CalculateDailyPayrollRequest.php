@@ -33,7 +33,6 @@ class CalculateDailyPayrollRequest extends FormRequest
             'tanggal_selesai' => ['required', 'date', 'after_or_equal:tanggal_mulai'],
             'mode' => ['required', Rule::in(['preview', 'calculate'])],
             'gaji_per_hari' => ['nullable', 'required_if:mode,calculate', 'numeric', 'min:1'],
-            'overtime_hourly_rate' => ['nullable', 'numeric', 'min:0'],
         ];
     }
 
@@ -55,8 +54,6 @@ class CalculateDailyPayrollRequest extends FormRequest
             'gaji_per_hari.required_if' => 'Silakan isi nominal gaji per hari terlebih dahulu.',
             'gaji_per_hari.numeric' => 'Nominal gaji per hari harus berupa angka.',
             'gaji_per_hari.min' => 'Gaji per hari harus lebih dari 0.',
-            'overtime_hourly_rate.numeric' => 'Tarif lembur per jam harus berupa angka.',
-            'overtime_hourly_rate.min' => 'Tarif lembur per jam tidak boleh negatif.',
         ];
     }
 
@@ -70,7 +67,6 @@ class CalculateDailyPayrollRequest extends FormRequest
             'tanggal_mulai' => 'tanggal mulai',
             'tanggal_selesai' => 'tanggal selesai',
             'gaji_per_hari' => 'gaji per hari',
-            'overtime_hourly_rate' => 'tarif lembur per jam',
         ];
     }
 

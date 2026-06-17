@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Payroll\CalculateDailyPayrollRequest;
 use App\Models\User;
 use App\Services\Payroll\DailyPayrollService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 use Inertia\Inertia;
@@ -18,46 +19,64 @@ class DailyPayrollController extends Controller
         return $this->render();
     }
 
-    public function calculate(CalculateDailyPayrollRequest $request, DailyPayrollService $payroll): Response|RedirectResponse
+    public function calculate(CalculateDailyPayrollRequest $request, DailyPayrollService $payroll): JsonResponse
     {
         $validated = $request->validated();
 
         try {
             $employee = $this->findDailyEmployee((int) $validated['karyawan_id']);
             if (! $employee) {
-                return back()->withErrors([
-                    'karyawan_id' => 'Karyawan yang dipilih bukan karyawan bertipe gaji harian.',
-                ])->withInput();
+                return response()->json([
+                    'message' => 'Karyawan yang dipilih bukan karyawan bertipe gaji harian.',
+                    'errors' => [
+                        'karyawan_id' => ['Karyawan yang dipilih bukan karyawan bertipe gaji harian.'],
+                    ],
+                ], 422);
             }
 
-            return $this->render([
+            $result = $payroll->calculateDailyPayroll(
+                $employee,
+                $validated['tanggal_mulai'],
+                $validated['tanggal_selesai'],
+                $validated['gaji_per_hari'] ?? null,
+            );
+
+            return response()->json([
+                'message' => 'Perhitungan gaji berhasil diproses.',
+                'employee' => $this->employeePayload($employee),
                 'filters' => [
                     'karyawan_id' => (int) $employee->user_id,
                     'tanggal_mulai' => $validated['tanggal_mulai'],
                     'tanggal_selesai' => $validated['tanggal_selesai'],
                     'gaji_per_hari' => $validated['gaji_per_hari'] ?? null,
-                    'overtime_hourly_rate' => $validated['overtime_hourly_rate'] ?? null,
                     'mode' => $validated['mode'],
                 ],
-                'selectedEmployee' => $this->employeePayload($employee),
-                'result' => $payroll->calculateDailyPayroll(
-                    $employee,
-                    $validated['tanggal_mulai'],
-                    $validated['tanggal_selesai'],
-                    $validated['gaji_per_hari'] ?? null,
-                    $validated['overtime_hourly_rate'] ?? null,
-                ),
+                'attendances' => $result['attendances'],
+                'attendance' => $result['attendance'],
+                'summary' => $result['summary'],
+                'attendance_summary' => $result['attendance_summary'],
+                'leave_summary' => $result['leave_summary'],
+                'overtime_summary' => $result['overtime_summary'],
+                'payroll' => $result['payroll'],
+                'period' => $result['period'],
+                'result' => $result,
             ]);
         } catch (\InvalidArgumentException $exception) {
-            return back()->withErrors([
-                'payroll' => $exception->getMessage(),
-            ])->withInput();
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'errors' => [
+                    'payroll' => [$exception->getMessage()],
+                ],
+            ], 422);
         } catch (\Throwable $exception) {
             report($exception);
 
-            return back()->withErrors([
-                'payroll' => 'Terjadi kesalahan saat memproses penggajian. Silakan coba lagi.',
-            ])->withInput();
+            return response()->json([
+                'message' => 'Terjadi kesalahan saat memproses penggajian. Silakan coba lagi.',
+                'errors' => [
+                    'payroll' => ['Terjadi kesalahan saat memproses penggajian. Silakan coba lagi.'],
+                ],
+            ], 500);
         }
     }
 
@@ -78,7 +97,6 @@ class DailyPayrollController extends Controller
                 $validated['tanggal_mulai'],
                 $validated['tanggal_selesai'],
                 $validated['gaji_per_hari'],
-                $validated['overtime_hourly_rate'] ?? null,
             );
 
             $view = view('payroll.daily-print', [
@@ -126,7 +144,6 @@ class DailyPayrollController extends Controller
                 'tanggal_mulai' => null,
                 'tanggal_selesai' => null,
                 'gaji_per_hari' => null,
-                'overtime_hourly_rate' => null,
                 'mode' => 'preview',
             ],
             'selectedEmployee' => null,

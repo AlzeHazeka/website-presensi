@@ -22,7 +22,6 @@ class DailyPayrollService
         string $startDate,
         string $endDate,
         int|float|string|null $dailyWage = null,
-        int|float|string|null $overtimeHourlyRate = null,
     ): array {
         if (strtolower((string) $employee->tipe_gaji) !== 'harian') {
             throw new \InvalidArgumentException('Karyawan yang dipilih bukan karyawan bertipe gaji harian.');
@@ -31,7 +30,6 @@ class DailyPayrollService
         $start = Carbon::parse($startDate)->startOfDay();
         $end = Carbon::parse($endDate)->startOfDay();
         $dailyWageValue = $dailyWage !== null && $dailyWage !== '' ? (float) $dailyWage : null;
-        $manualOvertimeRate = $overtimeHourlyRate !== null && $overtimeHourlyRate !== '' ? (float) $overtimeHourlyRate : null;
 
         $attendances = $this->attendanceRows($employee, $start, $end);
         $leaveSummary = $this->leaveSummary($employee, $start, $end);
@@ -44,11 +42,16 @@ class DailyPayrollService
         $validOvertimes = $overtimeRows->where('is_counted', true);
         $totalOvertimeMinutes = (int) $validOvertimes->sum('duration_minutes');
         $overtimePayableHours = $this->roundedPayableHours($totalOvertimeMinutes);
+        $overtimeDayEquivalent = intdiv($overtimePayableHours, 4);
+        $overtimeRemainingHours = $overtimePayableHours % 4;
 
         $hourlyWage = $dailyWageValue !== null ? $dailyWageValue / self::STANDARD_HOURS_PER_DAY : null;
-        $resolvedOvertimeRate = $manualOvertimeRate ?? $hourlyWage;
         $attendanceGrossTotal = $hourlyWage !== null ? round($attendancePayableHours * $hourlyWage, 2) : null;
-        $overtimeTotal = $resolvedOvertimeRate !== null ? round($overtimePayableHours * $resolvedOvertimeRate, 2) : null;
+        $overtimeDayTotal = $dailyWageValue !== null ? round($overtimeDayEquivalent * $dailyWageValue, 2) : null;
+        $overtimeHourTotal = $hourlyWage !== null ? round($overtimeRemainingHours * $hourlyWage, 2) : null;
+        $overtimeTotal = $overtimeDayTotal !== null || $overtimeHourTotal !== null
+            ? round((float) ($overtimeDayTotal ?? 0) + (float) ($overtimeHourTotal ?? 0), 2)
+            : null;
         $grossTotal = $attendanceGrossTotal !== null || $overtimeTotal !== null
             ? round((float) ($attendanceGrossTotal ?? 0) + (float) ($overtimeTotal ?? 0), 2)
             : null;
@@ -77,6 +80,9 @@ class DailyPayrollService
             'total_overtime_minutes' => $totalOvertimeMinutes,
             'total_overtime_hours_label' => $this->durationText($totalOvertimeMinutes),
             'payable_overtime_hours' => $overtimePayableHours,
+            'overtime_day_equivalent' => $overtimeDayEquivalent,
+            'overtime_remaining_hours' => $overtimeRemainingHours,
+            'overtime_conversion_label' => $this->overtimeConversionLabel($overtimeDayEquivalent, $overtimeRemainingHours),
             'rounding_minutes' => $totalOvertimeMinutes % 60,
             'incomplete_overtime_count' => $overtimeRows->whereIn('status', ['Data tidak lengkap', 'Belum selesai'])->count(),
             'invalid_overtime_count' => $overtimeRows->whereIn('status', ['Data tidak valid', 'Format waktu tidak valid'])->count(),
@@ -113,14 +119,17 @@ class DailyPayrollService
                 'total_gaji' => $grossTotal,
                 'daily_wage' => $dailyWageValue,
                 'hourly_wage' => $hourlyWage !== null ? round($hourlyWage, 2) : null,
-                'overtime_rate_type' => $manualOvertimeRate !== null ? 'manual' : 'same_as_hourly_wage',
-                'overtime_hourly_rate' => $resolvedOvertimeRate !== null ? round($resolvedOvertimeRate, 2) : null,
                 'standard_hours_per_day' => self::STANDARD_HOURS_PER_DAY,
                 'actual_work_hours_label' => $this->durationText($totalWorkMinutes),
                 'payable_hours' => $attendancePayableHours,
                 'attendance_payable_hours' => $attendancePayableHours,
                 'attendance_gross_total' => $attendanceGrossTotal,
                 'overtime_payable_hours' => $overtimePayableHours,
+                'overtime_day_equivalent' => $overtimeDayEquivalent,
+                'overtime_remaining_hours' => $overtimeRemainingHours,
+                'overtime_conversion_label' => $this->overtimeConversionLabel($overtimeDayEquivalent, $overtimeRemainingHours),
+                'overtime_day_total' => $overtimeDayTotal,
+                'overtime_hour_total' => $overtimeHourTotal,
                 'overtime_total' => $overtimeTotal,
                 'gross_total' => $grossTotal,
                 'is_calculated' => $dailyWageValue !== null,
@@ -360,6 +369,11 @@ class DailyPayrollService
         $remainingMinutes = max(0, $totalMinutes) % 60;
 
         return $remainingMinutes > 30 ? $hours + 1 : $hours;
+    }
+
+    private function overtimeConversionLabel(int $dayEquivalent, int $remainingHours): string
+    {
+        return "{$dayEquivalent} hari kerja + {$remainingHours} jam";
     }
 
     private function formatTime(mixed $value): ?string

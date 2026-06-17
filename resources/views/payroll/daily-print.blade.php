@@ -243,8 +243,8 @@
                 <div class="value">{{ $overtimeSummary['payable_overtime_hours'] ?? 0 }} jam</div>
             </div>
             <div class="row">
-                <div class="label">Tarif Lembur per Jam</div>
-                <div class="value">{{ $rupiah($payroll['overtime_hourly_rate'] ?? 0) }}</div>
+                <div class="label">Konversi Lembur</div>
+                <div class="value">{{ $overtimeSummary['overtime_conversion_label'] ?? $payroll['overtime_conversion_label'] ?? '0 hari kerja + 0 jam' }}</div>
             </div>
             <div class="row">
                 <div class="label">Pendapatan Lembur</div>
